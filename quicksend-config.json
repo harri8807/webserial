@@ -1,0 +1,57 @@
+[
+	{
+		"name": "KAFREE",
+		"list": [
+			{
+				"name": "读取状态",
+				"content": "123@READ@ALL#",
+				"hex": false
+			},
+			{
+				"name": "标定数据",
+				"content": "123@APP_MODEL@3,220,50,2,A,0,0,0,0,0,0,0,0,0,0#",
+				"hex": false
+			},
+			{
+				"name": "复位自检",
+				"content": "123@TEST@HEAT=0,0|VALVE=4|STEP=-160|PUMP=0,0,0,30,4,0,1|BREW=3000|VALVE=0#",
+				"hex": false
+			},
+			{
+				"name": "系统重启",
+				"content": "123@RESET@NULL#",
+				"hex": false
+			},
+			{
+				"name": "进入OTA模式",
+				"content": "123@OTA@NULL#",
+				"hex": false
+			},
+			{
+				"name": "退出制作",
+				"content": "123@OUT@NULL#",
+				"hex": false
+			},
+			{
+				"name": "发送",
+				"content": "123@TEST@GRIND=2000,1#",
+				"hex": false
+			},
+			{
+				"name": "发送",
+				"content": "123@TEST@GRIND_LEVEL=0#",
+				"hex": false
+			},
+			{
+				"name": "发送",
+				"content": "123@TEST@GRIND_LEVEL=50#",
+				"hex": false
+			},
+			{
+				"name": "发送",
+				"content": "",
+				"hex": false
+			}
+		]
+	}
+]

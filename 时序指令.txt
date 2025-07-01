@@ -1,0 +1,83 @@
+自检
+123@CHECK@NULL#
+123@RUN@HEAT=0,0|BREW=2000|VALVE=0#
+123@RUN@GRIND=5500,1|DELAY=500|BREW=1000|HEAT=0,0|STEP=-140|VALVE=0|DELAY=500|PUMP=0,0,0,15,1,0,1|DELAY=2000|PUMP=6,1,0,45,1,0,1|DELAY=500|DRAIN=2|DELAY=1000|DRAIN=0|STEP=140|DELAY=1500|BREW=2000|DELAY=1000|BREW=0|DELAY=200|BREW=300|VALVE=0#
+
+意式咖啡
+123@RUN@GRIND=3500,1|DELAY=500|BREW=1000|HEAT=97,0|STEP=-140|VALVE=0|DELAY=500|DRAIN=1|PUMP=0,0,0,15,3,0,1|DRAIN=0|DELAY=2000|PUMP=0,0,0,45,1,0,1|DELAY=500|DRAIN=2|DELAY=1000|DRAIN=0|STEP=140|DELAY=1500|BREW=2000|DELAY=1000|BREW=0|DELAY=200|BREW=300|VALVE=0#
+
+冷萃
+107@RUN@|GRIND=4420,1|DELAY=500|BREW=1000|HEAT=45,0|HEAT=0,0|STEP=-140|VALVE=0|DELAY=1000|DRAIN=1|PUMP=0,0,0,15,3,0,1|DRAIN=0|DELAY=2000|PUMP=0,0,0,5,1,0,1|PUMP=3,1,0,50,1,0,1|DELAY=500|DRAIN=1|DELAY=1000|DRAIN=0|STEP=140|DELAY=1500|BREW=2000|DELAY=1000|BREW=0|DELAY=200|BREW=300|VALVE=0#
+
+热水
+123@RUN@HEAT=95,0|VALVE=1|PUMP=0,0,70,100,2,0,1|VALVE=0#
+
+蒸汽
+3@RUN@VALVE=4|DELAY=2000|HEAT=138,0|STEAM=14,1,12000,2,1|DELAY=2000|VALVE=0|HEAT_STANDBY=97#
+
+磨豆自适应测试
+123@RUN@GRIND=5000,1|DELAY=500|BREW=1000|HEAT=0,0|STEP=-140|VALVE=0|DELAY=500|PUMP=0,0,0,15,3,0,1|DELAY=2000|STEP=140|DELAY=1500|BREW=0|DELAY=200|BREW=300|VALVE=0#
+
+奶沫器小清洗AB/B6
+7@RUN@HEAT=70,0|VALVE=3|PUMP=6,1,0,4,1,0,1|DELAY=3000|PUMP=6,1,0,4,1,0,1|DELAY=3000|PUMP=6,1,0,4,1,0,1|DELAY=3000|PUMP=6,1,0,4,1,0,1|DELAY=3000|PUMP=6,1,0,4,1,0,1|DELAY=3000|PUMP=6,1,0,4,1,0,1|DELAY=3000|PUMP=6,1,0,4,1,0,1|DELAY=3000|PUMP=6,1,0,4,1,0,1|DELAY=3000|PUMP=6,1,0,4,1,0,1|DELAY=3000|PUMP=6,1,0,4,1,0,1|DELAY=3000|PUMP=6,1,0,4,1,0,1|DELAY=3000|PUMP=6,1,0,6,1,0,1|VALVE=0#
+
+奶沫器小清洗SF1
+7@RUN@HEAT=70,0|VALVE=2|PUMP=0,0,90,3,1,0,1|DELAY=1000|PUMP=0,0,90,3,1,0,1|DELAY=1000|PUMP=0,0,90,3,1,0,1|DELAY=1000|PUMP=0,0,90,3,1,0,1|DELAY=1000|PUMP=0,0,90,3,1,0,1|DELAY=1000|PUMP=0,0,90,3,1,0,1|DELAY=1000|PUMP=0,0,90,3,1,0,1|DELAY=1000|PUMP=0,0,90,3,1,0,1|DELAY=1000|VALVE=0|DELAY=1000|VALVE=3|PUMP=0,0,90,3,1,0,1|DELAY=1500|PUMP=0,0,90,3,1,0,1|DELAY=1500|PUMP=0,0,90,3,1,0,1|DELAY=1500|PUMP=0,0,90,3,1,0,1|DELAY=1500|PUMP=0,0,90,3,1,0,1|DELAY=1500|PUMP=0,0,90,3,1,0,1|DELAY=1500|PUMP=0,0,90,3,1,0,1|DELAY=1500|PUMP=0,0,90,3,1,0,1|DELAY=1500|VALVE=0#
+
+
+
+奶沫器大清洗
+8@RUN@VALVE=4|HEAT=130,0|STEAM=16,1,24000,1,1|VALVE=4|DELAY=3000|STEAM=16,1,35000,0,1|VALVE=4|DELAY=3000|HEAT=85,0|VALVE=2|PUMP=0,0,90,20,2,0,1|DELAY=1000|VALVE=3|PUMP=0,0,90,20,2,0,1|VALVE=0#
+
+
+107@RUN@|GRIND=4420,1|DELAY=500|BREW=1000|HEAT=45,0|HEAT=0,0|STEP=-140|VALVE=0|DELAY=1000|DRAIN=1|PUMP=0,0,0,15,3,0,1|DRAIN=0|DELAY=2000|PUMP=0,0,0,5,1,0,1|PUMP=3,1,0,36,1,0,1|DELAY=500|DRAIN=1|DELAY=1000|DRAIN=0|STEP=140|VALVE=4|DELAY=2000|HEAT=138,0|STEAM=14,1,22000,0,1|DELAY=2000|VALVE=0|DELAY=1500|BREW=2000|DELAY=1000|BREW=0|DELAY=200|BREW=300|VALVE=0|HEAT_STANDBY=97#3073
+
+
+
+            if (flash_factory_data.machine_model == 0) // SF1机型
+            {
+                if (now_maker->heat_plate->data.temp_t_3 >= 1.5f)
+                {
+                    now_maker->heat_plate->data.pump_temp_s = 30; // 25
+                }
+                else if (now_maker->heat_plate->data.temp_t_2 >= 1)
+                {
+                    now_maker->heat_plate->data.pump_temp_s = 18;
+                }
+                else if (now_maker->heat_plate->data.temp_t_2 >= 0.8f)
+                {
+                    now_maker->heat_plate->data.pump_temp_s = 10;
+                }
+                else if (now_maker->heat_plate->data.temp_t_2 >= 0.5f)
+                {
+                    now_maker->heat_plate->data.pump_temp_s = 8;
+                }
+                else
+                {
+                    now_maker->heat_plate->data.pump_temp_s = 6;
+                }
+            }
+            else
+            {
+                if (now_maker->heat_plate->data.temp_t_3 >= 1.5f)
+                {
+                    now_maker->heat_plate->data.pump_temp_s = 40; // 25
+                }
+                else if (now_maker->heat_plate->data.temp_t_3 >= 1)
+                {
+                    now_maker->heat_plate->data.pump_temp_s = 25;
+                }
+                else if (now_maker->heat_plate->data.temp_t_3 >= 0.8f)
+                {
+                    now_maker->heat_plate->data.pump_temp_s = 15;
+                }
+                else if (now_maker->heat_plate->data.temp_t_2 >= 0.5f)
+                {
+                    now_maker->heat_plate->data.pump_temp_s = 8;
+                }
+                else
+                {
+                    now_maker->heat_plate->data.pump_temp_s = 6;
+                }
+            }
+
