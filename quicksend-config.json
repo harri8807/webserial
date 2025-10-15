@@ -1,20 +1,10 @@
 [
 	{
-		"name": "KAFREE",
+		"name": "KAxFREE",
 		"list": [
 			{
 				"name": "读取状态",
 				"content": "123@READ@ALL#",
-				"hex": false
-			},
-			{
-				"name": "标定数据",
-				"content": "123@APP_MODEL@3,220,50,2,A,0,0,0,0,0,0,0,0,0,0#",
-				"hex": false
-			},
-			{
-				"name": "复位自检",
-				"content": "123@TEST@HEAT=0,0|VALVE=4|STEP=-160|PUMP=0,0,0,30,4,0,1|BREW=3000|VALVE=0#",
 				"hex": false
 			},
 			{
@@ -33,25 +23,15 @@
 				"hex": false
 			},
 			{
-				"name": "发送",
-				"content": "123@TEST@GRIND=2000,1#",
+				"name": "设置泵的占空比",
+				"content": "123@RUN@PUMP=1,75,80,100#",
 				"hex": false
 			},
 			{
-				"name": "发送",
-				"content": "123@TEST@GRIND_LEVEL=0#",
+				"name": "关闭泵的运行",
+				"content": "123@RUN@PUMP=0,75,80,100#",
 				"hex": false
 			},
-			{
-				"name": "发送",
-				"content": "123@TEST@GRIND_LEVEL=50#",
-				"hex": false
-			},
-			{
-				"name": "发送",
-				"content": "",
-				"hex": false
-			}
 		]
 	}
 ]
