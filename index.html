@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KAxFREE Web Serial Debug-浏览器串口调试工具</title>
+    <title>KAFREE Web Serial Debug-浏览器串口调试工具</title>
 
     <link href="vendor/codemirror/css/codemirror.css" rel="stylesheet">
     <link href="vendor/codemirror/css/idea.min.css" rel="stylesheet">
@@ -36,7 +36,7 @@
         <div class="container-fluid d-flex align-items-center">
             <h1 class="d-flex align-items-center fs-4 text-white mb-0">
                 <img src="imgs/logo.png" width="48" height="48" class="me-3" alt="Web Serial">
-                KAxFREE SP OTA
+                KAFREE SP OTA
             </h1>
             <span class="ms-auto">
                 <button class="btn btn-sm btn-outline-light me-2" id="theme-toggle">
@@ -52,6 +52,13 @@
         <!--左侧串口配置-->
         <div id="serial-options" class="col-auto m-0 bg-light sidebar">
             <div class="collapse show p-2 float-start">
+                <div class="input-group mb-3">
+                    <span class="input-group-text">机型选择</span>
+                    <select class="form-select" id="device-type">
+                        <option value="SF_A6_B6">SF_A6_B6加校验</option>
+                        <option value="NONE">不加校验</option>
+                    </select>
+                </div>
                 <div class="input-group mb-3">
                     <span class="input-group-text">波特率</span>
                     <select class="form-select" id="serial-baud">
@@ -88,6 +95,27 @@
                     </select>
                 </div>
 
+                <div class="input-group mb-3">
+                    <span class="input-group-text">缓冲区</span>
+                    <input type="number" id="serial-buffer-size" class="form-control" placeholder="缓冲区大小"
+                        list="buffer-size-list" max="1677216" value="1024">
+                    <datalist id="buffer-size-list">
+                        <option>255</option>
+                        <option>512</option>
+                        <option>1024</option>
+                        <option>2048</option>
+                        <option>4096</option>
+                        <option>8192</option>
+                    </datalist>
+                </div>
+
+                <div class="input-group mb-3">
+                    <span class="input-group-text">流控制</span>
+                    <select class="form-select" id="serial-flow-control">
+                        <Option value="none">None</Option>
+                        <Option value="hardware">HardWare</Option>
+                    </select>
+                </div>
 
                 <div class="d-flex mt-2">
                     <button class="btn btn-secondary me-3" id="serial-select-port">选择串口</button>
