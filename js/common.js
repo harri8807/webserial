@@ -938,7 +938,7 @@
 
 			// 发送进入升级模式的命令
 			firmwareStatus.textContent = '发送进入升级模式命令...';
-			const enterOtaCmd = new TextEncoder().encode('123@OTA@NULL#');
+			const enterOtaCmd = new TextEncoder().encode('123@OTA@NULL#123');
 			await writeData(enterOtaCmd);
 
 			firmwareStatus.textContent = '等待设备响应C字符(10秒超时)...';
