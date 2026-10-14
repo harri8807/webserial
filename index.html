@@ -7,21 +7,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KAFREE Web Serial Debug-浏览器串口调试工具</title>
 
-    <link href="vendor/codemirror/css/codemirror.css" rel="stylesheet">
-    <link href="vendor/codemirror/css/idea.min.css" rel="stylesheet">
     <link href="vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
     <link href="vendor/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
 
-    <script src="vendor/codemirror/js/codemirror.js"></script>
-    <script src="vendor/codemirror/js/active-line.min.js"></script>
-    <script src="vendor/codemirror/js/matchbrackets.js"></script>
-    <script src="vendor/codemirror/js/javascript.min.js"></script>
     <script src="vendor/bootstrap/js/bootstrap.js"></script>
 
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/dark-theme.css">
     <link rel="icon" href="imgs/logo.png" type="image/svg+xml">
-    <script src="./js/ymodem.js"></script>
     <script>
         hideTop = function () {
             var header = document.querySelector('.bd-header');
@@ -38,12 +31,13 @@
                 <img src="imgs/logo.png" width="48" height="48" class="me-3" alt="Web Serial">
                 KAFREE SP OTA
             </h1>
-            <span class="ms-auto">
-                <button class="btn btn-sm btn-outline-light me-2" id="theme-toggle">
+            <span class="ms-auto d-flex align-items-center">
+                <button class="btn btn-sm btn-outline-light me-2" id="theme-toggle" title="切换深浅主题">
                     <i class="bi bi-moon-fill"></i>
                 </button>
-                <img src="imgs/logo.png" alt="开源图标" style="height: 24px; margin: 0 4px;">
-                <a href="javascript:hideTop()" class="link-light ms-2">隐藏头部</a>
+                <button type="button" onclick="hideTop()" class="btn btn-sm btn-outline-light" title="隐藏顶部导航栏">
+                    <i class="bi bi-chevron-bar-up"></i> 隐藏头部
+                </button>
             </span>
         </div>
     </header>
@@ -52,13 +46,6 @@
         <!--左侧串口配置-->
         <div id="serial-options" class="col-auto m-0 bg-light sidebar">
             <div class="collapse show p-2 float-start">
-                <div class="input-group mb-3">
-                    <span class="input-group-text">机型选择</span>
-                    <select class="form-select" id="device-type">
-                        <option value="SF_A6_B6">SF_A6_B6加校验</option>
-                        <option value="NONE">不加校验</option>
-                    </select>
-                </div>
                 <div class="input-group mb-3">
                     <span class="input-group-text">波特率</span>
                     <select class="form-select" id="serial-baud">
@@ -95,28 +82,6 @@
                     </select>
                 </div>
 
-                <div class="input-group mb-3">
-                    <span class="input-group-text">缓冲区</span>
-                    <input type="number" id="serial-buffer-size" class="form-control" placeholder="缓冲区大小"
-                        list="buffer-size-list" max="1677216" value="1024">
-                    <datalist id="buffer-size-list">
-                        <option>255</option>
-                        <option>512</option>
-                        <option>1024</option>
-                        <option>2048</option>
-                        <option>4096</option>
-                        <option>8192</option>
-                    </datalist>
-                </div>
-
-                <div class="input-group mb-3">
-                    <span class="input-group-text">流控制</span>
-                    <select class="form-select" id="serial-flow-control">
-                        <Option value="none">None</Option>
-                        <Option value="hardware">HardWare</Option>
-                    </select>
-                </div>
-
                 <div class="d-flex mt-2">
                     <button class="btn btn-secondary me-3" id="serial-select-port">选择串口</button>
                     <button class="btn btn-primary flex-grow-1" id="serial-open-or-close">打开串口</button>
@@ -127,13 +92,31 @@
                         未选择串口
                     </div>
                 </div>
+
+                <hr class="my-3">
+
+                <!--固件升级(OTA)-->
+                <div class="firmware-upgrade">
+                    <div class="fw-bold mb-2"><i class="bi bi-cpu me-1"></i>固件升级</div>
+                    <div class="mb-2">
+                        <input type="file" class="form-control form-control-sm" id="firmware-file" accept=".bin">
+                    </div>
+                    <button class="btn btn-primary btn-sm w-100 mb-2" type="button" id="upload-firmware">
+                        <i class="bi bi-upload"></i> 升级固件
+                    </button>
+                    <div class="progress mb-2" style="display: none; height: 16px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%; font-size: 0.75rem;">0%</div>
+                    </div>
+                    <div id="firmware-status" class="alert alert-info py-2 px-2 mb-0" style="display: none; font-size: 0.8rem;">
+                        准备开始固件升级...
+                    </div>
+                </div>
             </div>
             <button class="toggle-button float-end" title="隐藏/打开边栏">
                 <i class="bi bi-chevron-compact-left"></i>
             </button>
 
         </div>
-        <div class="clear"></div>
         <!--中间串口日志-->
         <div id="log-main" class="flex-fill px-md-2">
             <div
@@ -201,134 +184,54 @@
                 </div>
             </div>
         </div>
-        <div class="clear"></div>
-
         <!--右侧串口工具-->
         <div id="serial-tools" class="col-auto m-0 bg-light sidebar">
             <button class="toggle-button float-start" title="隐藏/打开边栏">
                 <i class="bi bi-chevron-compact-right"></i>
             </button>
-            <div class="collapse show p-1 float-start overflow-hidden" style="width:428px">
-
-                <nav>
-                    <div class="nav nav-tabs" id="nav-tab" role="tablist">                 
-                        <button class="nav-link " id="nav-options-tab" data-bs-toggle="tab" data-bs-target="#nav-options"
-                            type="button" role="tab" aria-controls="nav-options" aria-selected="false">OTA升级</button>
-                        <button class="nav-link active" id="nav-quick-send-tab" data-bs-toggle="tab"
-                            data-bs-target="#nav-quick-send" type="button" role="tab" aria-controls="nav-quick-send"
-                            aria-selected="true">快捷发送</button>
-                        <button class="nav-link" id="nav-code-tab" data-bs-toggle="tab" data-bs-target="#nav-code"
-                            type="button" role="tab" aria-controls="nav-code" aria-selected="false">代码脚本</button>
-
-                    </div>
-                </nav>
-                <div class="tab-content pt-2 flex-fill" id="nav-tabContent">
-                    <div class="tab-pane fade show active" id="nav-quick-send" role="tabpanel"
-                        aria-labelledby="nav-quick-send-tab">
-                        <div class="btn-toolbar">
-                            <div class="flex-grow-1 input-group input-group-sm me-2">
-                                <span class="input-group-text">选择分组</span>
-                                <select class="form-select" id="serial-quick-send">
-                                </select>
-                            </div>
-
-                            <div class="btn-group">
-                                <button class="btn btn-sm btn-outline-secondary"
-                                    id="serial-quick-send-add-group">新增</button>
-                                <button class="btn btn-sm btn-outline-secondary"
-                                    id="serial-quick-send-rename-group">改名</button>
-                                <button class="btn btn-sm btn-outline-secondary"
-                                    id="serial-quick-send-remove-group">删除</button>
-                                <button class="btn btn-sm btn-outline-secondary">云端</button>
-                            </div>
+            <div class="collapse show p-2 float-start overflow-hidden d-flex flex-column" style="width:428px">
+                <div class="d-flex align-items-center justify-content-between pb-2 border-bottom mb-2 flex-shrink-0">
+                    <span class="fw-bold fs-6"><i class="bi bi-lightning-charge me-1"></i>快捷发送</span>
+                </div>
+                <div id="nav-quick-send" class="flex-grow-1 d-flex flex-column overflow-hidden">
+                    <div class="btn-toolbar flex-shrink-0">
+                        <div class="flex-grow-1 input-group input-group-sm me-2">
+                            <span class="input-group-text">选择分组</span>
+                            <select class="form-select" id="serial-quick-send">
+                            </select>
                         </div>
-                        <div class="d-flex mt-2">
-                            <button id="serial-quick-send-add" class="btn btn-sm btn-outline-secondary me-5"><i
-                                    class="bi bi-plus-square"></i> 增加一条</button>
-                            <button class="btn btn-sm btn-outline-secondary me-2 flex-grow-1"
-                                id="serial-quick-send-import-btn"><i class="bi bi-folder-plus"></i>
-                                导入</button>
-                            <input type="file" id="serial-quick-send-import" style="display: none;"
-                                accept="application/json" />
-                            <button class="btn btn-sm btn-outline-secondary flex-grow-1"
-                                id="serial-quick-send-export"><i class="bi bi-folder-symlink"></i>
-                                导出</button>
-                        </div>
-                        <div class="mt-2">
-                            <div class="d-flex">
-                                <span class="me-2 ms-3">移除</span>
-                                <span class="flex-grow-1 me-1">发送内容,点击修改,双击改名</span>
-                                <span class="flex-shrink-0 me-3">显示名称</span>
-                                <span class="flex-shrink-0 me-2">HEX</span>
-                            </div>
-                        </div>
-                        <div id="serial-quick-send-content"
-                            class="flex-grow-1 border border-2 p-2 rounded overflow-auto">
+
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-secondary"
+                                id="serial-quick-send-add-group">新增</button>
+                            <button class="btn btn-sm btn-outline-secondary"
+                                id="serial-quick-send-rename-group">改名</button>
+                            <button class="btn btn-sm btn-outline-secondary"
+                                id="serial-quick-send-remove-group">删除</button>
                         </div>
                     </div>
-                    <div class="tab-pane fade" id="nav-options" role="tabpanel" aria-labelledby="nav-options-tab">
-                        <h5>固件升级</h5>
-                        <div class="firmware-upgrade">
-                            <div class="input-group mb-3">
-                                <input type="file" class="form-control" id="firmware-file" accept=".bin">
-                                <button class="btn btn-primary" type="button" id="upload-firmware">
-                                    <i class="bi bi-upload"></i> 升级固件
-                                </button>
-                            </div>
-                            <div class="progress mb-3" style="display: none;">
-                                <div class="progress-bar" role="progressbar" style="width: 0%">0%</div>
-                            </div>
-                            <div id="firmware-status" class="alert alert-info" style="display: none;">
-                                准备开始固件升级...
-                            </div>
-                        </div>
-
-                        <h5 class="mt-4">快捷发送配置</h5>
-                        <div class="alert alert-info" role="alert" style="font-size: 0.85em;">
-                            <strong>自动加载：</strong>将配置保存为 <strong>quicksend-config.json</strong> 文件放在工程根目录，通过HTTP服务器访问页面时会自动加载。<br>
-                            <strong>HTTP服务器</strong>在工程目录执行 <code>python -m http.server 8000</code> 然后访问 <code>http://localhost:8000</code>
-                        </div>
-                        <button class="btn btn-sm btn-outline-primary me-2" id="quicksend-save-file"><i
-                                class="bi bi-download"></i> 保存到文件</button>
-                        <button class="btn btn-sm btn-outline-primary me-2" id="quicksend-load-file"><i
-                                class="bi bi-upload"></i> 从文件加载</button>
-                        <input type="file" id="quicksend-load-input" style="display: none;" accept="application/json" />
-                        
-                        <h5 class="mt-4">系统配置</h5>
-                        <button class="btn btn-sm btn-outline-secondary me-2" id="serial-reset"><i
-                                class="bi bi-arrow-repeat"></i> 重置参数</button>
-                        <button class="btn btn-sm btn-outline-secondary me-2" id="serial-export"><i
-                                class="bi bi-folder-symlink"></i> 导出配置</button>
-                        <button class="btn btn-sm btn-outline-secondary me-2" id="serial-import"><i
-                                class="bi bi-folder-plus"></i> 导入配置</button>
-                        <input type="file" id="serial-import-file" style="display: none;" accept="application/json" />
+                    <div class="d-flex mt-2 flex-shrink-0">
+                        <button id="serial-quick-send-add" class="btn btn-sm btn-outline-secondary me-5"><i
+                                class="bi bi-plus-square"></i> 增加一条</button>
+                        <button class="btn btn-sm btn-outline-secondary me-2 flex-grow-1"
+                            id="serial-quick-send-import-btn"><i class="bi bi-folder-plus"></i>
+                            导入</button>
+                        <input type="file" id="serial-quick-send-import" style="display: none;"
+                            accept="application/json" />
+                        <button class="btn btn-sm btn-outline-secondary flex-grow-1"
+                            id="serial-quick-send-export"><i class="bi bi-folder-symlink"></i>
+                            导出</button>
                     </div>
-                    <div class="tab-pane d-flex flex-column fade" id="nav-code" role="tabpanel"
-                        aria-labelledby="nav-code-tab">
-                        <div class="flex-grow-1 overflow-hidden" id="serial-code-editor">
-                            <textarea class="form-control" rows="3" id="serial-code-content" style="resize: none;"
-                                placeholder="在此输入要执行的代码脚本">
-addEventListener('message', function ({data}) {
-    if(data.type=='uart_receive')
-    {
-        postMessage({type:'log',data:'消息长度:'+data.data.length});
-        //原文答复
-        postMessage({type:'uart_send',data:data.data});
-    }
-})
-setInterval(function(){
-    //定时发送
-    postMessage({type:'uart_send_txt',data:'hello world'});
-},1000);</textarea>
+                    <div class="mt-2 flex-shrink-0">
+                        <div class="d-flex">
+                            <span class="me-2 ms-3">移除</span>
+                            <span class="flex-grow-1 me-1">发送内容,点击修改,双击改名</span>
+                            <span class="flex-shrink-0 me-3">显示名称</span>
+                            <span class="flex-shrink-0 me-2">HEX</span>
                         </div>
-                        <div class="mt-2">
-                            <input id='serial-code-select' type='file' class="d-none">
-                            <button class="btn btn-sm btn-outline-secondary me-2" id="serial-code-load"><i
-                                    class="bi bi-folder2-open"></i> 打开文件</button>
-                            <button id="serial-code-run" class="btn btn-primary btn-sm float-end"><i
-                                    class="bi bi-play"></i>
-                                运行</button>
-                        </div>
+                    </div>
+                    <div id="serial-quick-send-content"
+                        class="flex-grow-1 border border-2 p-2 rounded overflow-auto mt-1">
                     </div>
                 </div>
             </div>
@@ -375,8 +278,6 @@ setInterval(function(){
             </div>
         </div>
     </div>
-    <script src="js/bootstrap-minimal.js"></script>
-    <script src="js/simple-editor.js"></script>
     <script src="js/ansi_up.min.js"></script>
     <script src="js/ymodem.js"></script>
     <script src="js/common.js"></script>

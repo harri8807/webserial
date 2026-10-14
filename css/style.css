@@ -18,17 +18,35 @@ body {
 	height: 100%;
 }
 #serial-logs {
-	overflow-y: scroll;
+	overflow-y: auto;
 	white-space: pre-wrap;
 	word-break: break-all;
+	font-family: 'Consolas', 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
+	font-size: 0.85rem;
+	line-height: 1.5;
+	padding: 8px 12px;
 }
 #serial-logs.ansi {
 	background-color: #000;
 	color: #fff;
 }
+#serial-send-content {
+	font-family: 'Consolas', 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
+	font-size: 0.875rem;
+}
 #serial-options,
 #serial-tools {
 	position: relative;
+}
+#serial-options {
+	border-right: 1px solid #dee2e6;
+}
+#serial-options .input-group-text {
+	width: 72px;
+	justify-content: center;
+}
+#serial-tools {
+	border-left: 1px solid #dee2e6;
 }
 .toggle-button {
 	align-items: center;
@@ -42,6 +60,8 @@ body {
 	width: 20px;
 	z-index: 1;
 	background-color: #f8f9fa;
+	cursor: pointer;
+	transition: background 0.15s ease-in-out;
 }
 .toggle-button:hover {
 	background: rgba(228, 231, 242, 0.4);
@@ -50,22 +70,30 @@ body {
 #serial-tools {
 	height: 100%;
 }
-#nav-tabContent {
-	overflow: hidden;
-}
-#serial-tools .collapse.show,
-#nav-quick-send.show {
+#serial-tools .collapse.show {
 	height: 100%;
 	display: flex;
 	flex-direction: column;
 }
-#nav-code {
-	height: 100%;
+
+.quick-item {
+	transition: background-color 0.15s ease-in-out;
 }
-#serial-code-editor .CodeMirror {
-	height: 100%;
+.quick-item:hover {
+	background-color: rgba(0, 0, 0, 0.03);
 }
-.CodeMirror-readonly {
-	background-color: var(--bs-light-rgb);
-	cursor: not-allowed;
+
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+::-webkit-scrollbar-track {
+	background: #f1f1f1;
+}
+::-webkit-scrollbar-thumb {
+	background: #c1c1c1;
+	border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+	background: #a8a8a8;
 }

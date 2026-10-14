@@ -1,14 +1,15 @@
 ; (function () {
+	let serialPort = null
 	if (!('serial' in navigator)) {
 		alert('当前浏览器不支持串口操作,请更换Edge或Chrome浏览器')
+	} else {
+		navigator.serial.getPorts().then((ports) => {
+			if (ports.length > 0) {
+				serialPort = ports[0]
+				serialStatuChange(true)
+			}
+		})
 	}
-	let serialPort = null
-	navigator.serial.getPorts().then((ports) => {
-		if (ports.length > 0) {
-			serialPort = ports[0]
-			serialStatuChange(true)
-		}
-	})
 	let reader
 	//串口目前是打开状态
 	let serialOpen = false
@@ -116,7 +117,6 @@
 			],
 		},
 	]
-	let worker = null
 	//工具配置
 	let toolOptions = {
 		//自动滚动
@@ -139,8 +139,6 @@
 		sendContent: '',
 		//快捷发送选中索引
 		quickSendIndex: 0,
-		//机型选择
-		deviceType: 'SF_A6_B6',
 		//主题设置
 		darkTheme: false
 	}
@@ -403,174 +401,7 @@
 		}
 		reader.readAsText(file)
 	})
-	//手动保存快捷发送配置到文件
-	document.getElementById('quicksend-save-file').addEventListener('click', async (e) => {
-		const success = await saveQuickSendToFile()
-		if (success) {
-			addLogErr('快捷发送配置已保存到文件')
-		} else {
-			// 如果文件系统API不支持，降级到下载文件
-			let data = JSON.stringify(quickSendList, null, '\t')
-			let blob = new Blob([data], { type: 'application/json' })
-			saveAs(blob, 'quicksend-config.json')
-			addLogErr('快捷发送配置已下载，请将文件重命名为 quicksend-config.json 并放在工程根目录')
-		}
-	})
 
-	//手动从文件加载快捷发送配置
-	document.getElementById('quicksend-load-file').addEventListener('click', (e) => {
-		document.getElementById('quicksend-load-input').click()
-	})
-
-	document.getElementById('quicksend-load-input').addEventListener('change', (e) => {
-		let file = e.target.files[0]
-		e.target.value = ''
-		if (!file) return
-
-		let reader = new FileReader()
-		reader.onload = function (e) {
-			let data = e.target.result
-			try {
-				let loadedList = JSON.parse(data)
-				if (Array.isArray(loadedList) && loadedList.length > 0) {
-					quickSendList = loadedList
-					configLoaded = true // 标记为从文件加载
-					
-					// 重新生成选项列表
-					quickSend.innerHTML = ''
-					quickSendList.forEach((item, index) => {
-						let option = document.createElement('option')
-						option.innerText = item.name
-						option.value = index
-						quickSend.appendChild(option)
-					})
-					
-					// 选择第一个分组
-					quickSend.value = 0
-					quickSend.dispatchEvent(new Event('change'))
-					
-					// 保存到localStorage作为备份
-					saveQuickList()
-					
-					addLogErr('快捷发送配置加载成功')
-				} else {
-					addLogErr('配置文件格式错误')
-				}
-			} catch (e) {
-				addLogErr('配置文件解析失败: ' + e.message)
-			}
-		}
-		reader.readAsText(file)
-	})
-
-	//重置参数
-	document.getElementById('serial-reset').addEventListener('click', (e) => {
-		if (!confirm('是否重置参数?')) {
-			return
-		}
-		localStorage.removeItem('serialOptions')
-		localStorage.removeItem('toolOptions')
-		localStorage.removeItem('quickSendList')
-		localStorage.removeItem('code')
-		location.reload()
-	})
-	//导出参数
-	document.getElementById('serial-export').addEventListener('click', (e) => {
-		let data = {
-			serialOptions: localStorage.getItem('serialOptions'),
-			toolOptions: localStorage.getItem('toolOptions'),
-			quickSendList: localStorage.getItem('quickSendList'),
-			code: localStorage.getItem('code'),
-		}
-		let blob = new Blob([JSON.stringify(data)], { type: 'text/plain' })
-		saveAs(blob, 'web-serial-debug.json')
-	})
-	//导入参数
-	document.getElementById('serial-import').addEventListener('click', (e) => {
-		document.getElementById('serial-import-file').click()
-	})
-	function setParam(key, value) {
-		if (value == null) {
-			localStorage.removeItem(key)
-		} else {
-			localStorage.setItem(key, value)
-		}
-	}
-	document.getElementById('serial-import-file').addEventListener('change', (e) => {
-		let file = e.target.files[0]
-		e.target.value = ''
-		let reader = new FileReader()
-		reader.onload = function (e) {
-			let data = e.target.result
-			try {
-				let obj = JSON.parse(data)
-				setParam('serialOptions', obj.serialOptions)
-				setParam('toolOptions', obj.toolOptions)
-				setParam('quickSendList', obj.quickSendList)
-				setParam('code', obj.code)
-				location.reload()
-			} catch (e) {
-				showMsg('导入失败:' + e.message)
-			}
-		}
-		reader.readAsText(file)
-	})
-	const serialCodeContent = document.getElementById('serial-code-content')
-	const serialCodeSelect = document.getElementById('serial-code-select')
-	const code = localStorage.getItem('code')
-	if (code) {
-		serialCodeContent.value = code
-	}
-	//代码编辑器
-	var editor = CodeMirror.fromTextArea(serialCodeContent, {
-		lineNumbers: true, // 显示行数
-		indentUnit: 4, // 缩进单位为4
-		styleActiveLine: true, // 当前行背景高亮
-		matchBrackets: true, // 括号匹配
-		mode: 'javascript', // 设置编辑器语言为JavaScript
-		// lineWrapping: true,    // 自动换行
-		theme: 'idea', // 主题
-	})
-	//读取本地文件
-	serialCodeSelect.onchange = function (e) {
-		var fr = new FileReader()
-		fr.onload = function () {
-			editor.setValue(fr.result)
-		}
-		fr.readAsText(this.files[0])
-	}
-	document.getElementById('serial-code-load').onclick = function () {
-		serialCodeSelect.click()
-	}
-	//运行或停止脚本
-	const code_editor_run = document.getElementById('serial-code-run')
-	code_editor_run.addEventListener('click', (e) => {
-		if (worker) {
-			worker.terminate()
-			worker = null
-			code_editor_run.innerHTML = '<i class="bi bi-play"></i>运行'
-			editor.setOption('readOnly', false)
-			editor.getWrapperElement().classList.remove('CodeMirror-readonly')
-			return
-		}
-		editor.setOption('readOnly', 'nocursor')
-		editor.getWrapperElement().classList.add('CodeMirror-readonly')
-		localStorage.setItem('code', editor.getValue())
-		code_editor_run.innerHTML = '<i class="bi bi-stop"></i>停止'
-		var blob = new Blob([editor.getValue()], { type: 'text/javascript' })
-		worker = new Worker(window.URL.createObjectURL(blob))
-		worker.onmessage = function (e) {
-			if (e.data.type == 'uart_send') {
-				writeData(new Uint8Array(e.data.data))
-			} else if (e.data.type == 'uart_send_hex') {
-				sendHex(e.data.data)
-			} else if (e.data.type == 'uart_send_txt') {
-				sendText(e.data.data)
-			} else if (e.data.type == 'log') {
-				addLogErr(e.data.data)
-			}
-		}
-	})
 	//读取参数
 	let options = localStorage.getItem('serialOptions')
 	if (options) {
@@ -579,8 +410,6 @@
 		set('serial-data-bits', serialOptions.dataBits)
 		set('serial-stop-bits', serialOptions.stopBits)
 		set('serial-parity', serialOptions.parity)
-		set('serial-buffer-size', serialOptions.bufferSize)
-		set('serial-flow-control', serialOptions.flowControl)
 	}
 	options = localStorage.getItem('toolOptions')
 	if (options) {
@@ -618,6 +447,13 @@
 	})
 	document.getElementById('serial-send-content').addEventListener('change', function (e) {
 		changeOption('sendContent', this.value)
+	})
+	// Ctrl+Enter 快捷键发送
+	document.getElementById('serial-send-content').addEventListener('keydown', function (e) {
+		if (e.ctrlKey && e.key === 'Enter') {
+			e.preventDefault()
+			send()
+		}
 	})
 	document.getElementById('serial-add-crlf').addEventListener('change', function (e) {
 		changeOption('addCRLF', this.checked)
@@ -714,8 +550,6 @@
 			dataBits: parseInt(get('serial-data-bits')),
 			stopBits: parseInt(get('serial-stop-bits')),
 			parity: get('serial-parity'),
-			bufferSize: parseInt(get('serial-buffer-size')),
-			flowControl: get('serial-flow-control'),
 		}
 		// console.log('串口配置', JSON.stringify(SerialOptions))
 		serialPort
@@ -750,10 +584,12 @@
 
 	//设置读取元素
 	function get(id) {
-		return document.getElementById(id).value
+		const el = document.getElementById(id)
+		return el ? el.value : ''
 	}
 	function set(id, value) {
-		return (document.getElementById(id).value = value)
+		const el = document.getElementById(id)
+		if (el) el.value = value
 	}
 
 	//修改参数并保存
@@ -763,18 +599,20 @@
 	}
 
 	//串口事件监听
-	navigator.serial.addEventListener('connect', (e) => {
-		serialStatuChange(true)
-		serialPort = e.target
-		//未主动关闭连接的情况下,设备重插,自动重连
-		if (!serialClose) {
-			openSerial()
-		}
-	})
-	navigator.serial.addEventListener('disconnect', (e) => {
-		serialStatuChange(false)
-		setTimeout(closeSerial, 500)
-	})
+	if ('serial' in navigator) {
+		navigator.serial.addEventListener('connect', (e) => {
+			serialStatuChange(true)
+			serialPort = e.target
+			//未主动关闭连接的情况下,设备重插,自动重连
+			if (!serialClose) {
+				openSerial()
+			}
+		})
+		navigator.serial.addEventListener('disconnect', (e) => {
+			serialStatuChange(false)
+			setTimeout(closeSerial, 500)
+		})
+	}
 	function serialStatuChange(statu) {
 		let tip
 		if (statu) {
@@ -794,6 +632,9 @@
 		if (toolOptions.hexSend) {
 			await sendHex(content)
 		} else {
+			if (toolOptions.addCRLF) {
+				content += '\r\n'
+			}
 			await sendText(content)
 		}
 	}
@@ -818,23 +659,6 @@
 		writeData(encoder.encode(text))
 	}
 
-	// 添加CRC16 Modbus计算函数
-	function crc16modbus(data) {
-		let crc = 0xFFFF;
-		for (let i = 0; i < data.length; i++) {
-			crc ^= data[i];
-			for (let j = 0; j < 8; j++) {
-				if ((crc & 0x0001) !== 0) {
-					crc >>= 1;
-					crc ^= 0xA001;
-				} else {
-					crc >>= 1;
-				}
-			}
-		}
-		return crc;
-	}
-
 	//串口写数据
 	async function writeData(data, skipLog = false) {
 		if (serialPort == null || serialPort.writable == null) {
@@ -842,28 +666,6 @@
 		}
 
 		try {
-			// 如果选择了SF_A6_B6机型且不在固件升级模式（skipLog=false），添加CRC16校验
-			if (toolOptions.deviceType === 'SF_A6_B6' && !skipLog) {
-				// 计算CRC值
-				const crc = crc16modbus(data);
-				
-				if (toolOptions.hexSend) {
-					// HEX模式：直接添加CRC字节
-					const dataWithCrc = new Uint8Array(data.length + 2);
-					dataWithCrc.set(data);
-					dataWithCrc[data.length] = (crc >> 8) & 0xFF; // CRC高字节
-					dataWithCrc[data.length + 1] = crc & 0xFF;    // CRC低字节
-					data = dataWithCrc;
-				} else {
-					// 文本模式：将CRC值转换为字符串添加到末尾
-					const crcStr = crc.toString();
-					const encoder = new TextEncoder();
-					const originalText = new TextDecoder().decode(data);
-					const newText = originalText + crcStr;
-					data = encoder.encode(newText);
-				}
-			}
-
 			const writer = serialPort.writable.getWriter()
 			await writer.write(data)
 			writer.releaseLock() // 释放写入锁
@@ -1062,9 +864,6 @@
 
 			serialData.push(...data);
 			if (toolOptions.timeOut == 0) {
-				if (worker) {
-					worker.postMessage({ type: 'uart_receive', data: serialData });
-				}
 				addLog(serialData, true);
 				serialData = [];
 				return;
@@ -1073,9 +872,6 @@
 			//清除之前的时钟
 			clearTimeout(serialTimer);
 			serialTimer = setTimeout(() => {
-				if (worker) {
-					worker.postMessage({ type: 'uart_receive', data: serialData });
-				}
 				//超时发出
 				addLog(serialData, true);
 				serialData = [];
@@ -1232,51 +1028,27 @@
 		}
 	}
 
-	// 添加机型选择事件监听
-	document.getElementById('device-type').addEventListener('change', function (e) {
-		toolOptions.deviceType = e.target.value;
-		localStorage.setItem('toolOptions', JSON.stringify(toolOptions));
-	});
-
-	// 页面加载时恢复保存的设置
-	window.addEventListener('load', function () {
-		const savedOptions = localStorage.getItem('toolOptions');
-		if (savedOptions) {
-			const options = JSON.parse(savedOptions);
-			if (options.deviceType) {
-				toolOptions.deviceType = options.deviceType;
-				document.getElementById('device-type').value = options.deviceType;
-			}
-		}
-	});
-
 	// 主题切换功能
 	const themeToggleBtn = document.getElementById('theme-toggle');
-	const themeIcon = themeToggleBtn.querySelector('i');
+	const themeIcon = themeToggleBtn ? themeToggleBtn.querySelector('i') : null;
 
 	function updateTheme(isDark) {
 		document.documentElement.setAttribute('data-bs-theme', isDark ? 'dark' : 'light');
-		themeIcon.className = isDark ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
+		if (themeIcon) {
+			themeIcon.className = isDark ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
+		}
 		toolOptions.darkTheme = isDark;
 		localStorage.setItem('toolOptions', JSON.stringify(toolOptions));
 	}
 
-	themeToggleBtn.addEventListener('click', () => {
-		updateTheme(!toolOptions.darkTheme);
-	});
+	if (themeToggleBtn) {
+		themeToggleBtn.addEventListener('click', () => {
+			updateTheme(!toolOptions.darkTheme);
+		});
+	}
 
-	// 页面加载时设置主题
-	window.addEventListener('load', function () {
-		const savedOptions = localStorage.getItem('toolOptions');
-		if (savedOptions) {
-			const options = JSON.parse(savedOptions);
-			if (options.darkTheme !== undefined) {
-				updateTheme(options.darkTheme);
-			}
-			if (options.deviceType) {
-				toolOptions.deviceType = options.deviceType;
-				document.getElementById('device-type').value = options.deviceType;
-			}
-		}
-	});
+	// 初始化主题设置
+	if (toolOptions.darkTheme !== undefined) {
+		updateTheme(toolOptions.darkTheme);
+	}
 })()

@@ -18,6 +18,14 @@
     color: #e4e4e4;
 }
 
+[data-bs-theme="dark"] .form-control:focus,
+[data-bs-theme="dark"] .form-select:focus {
+    background-color: #333333;
+    border-color: #0d6efd;
+    color: #ffffff;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
 [data-bs-theme="dark"] .input-group-text {
     background-color: #404040;
     border-color: #404040;
@@ -56,20 +64,6 @@
     color: #b77575;
 }
 
-[data-bs-theme="dark"] .CodeMirror {
-    background-color: #2d2d2d;
-    color: #e4e4e4;
-}
-
-[data-bs-theme="dark"] .CodeMirror-gutters {
-    background-color: #262626;
-    border-right: 1px solid #404040;
-}
-
-[data-bs-theme="dark"] .CodeMirror-linenumber {
-    color: #808080;
-}
-
 [data-bs-theme="dark"] .modal-content {
     background-color: #2d2d2d;
     border-color: #404040;
@@ -102,7 +96,14 @@
 
 [data-bs-theme="dark"] .sidebar {
     background-color: #2d2d2d;
+}
+
+[data-bs-theme="dark"] #serial-options {
     border-right: 1px solid #404040;
+}
+
+[data-bs-theme="dark"] #serial-tools {
+    border-left: 1px solid #404040;
 }
 
 [data-bs-theme="dark"] .toggle-button {
@@ -113,6 +114,7 @@
 
 [data-bs-theme="dark"] .toggle-button:hover {
     background-color: #404040;
+    color: #ffffff;
 }
 
 [data-bs-theme="dark"] .sidebar .nav-link {
@@ -121,10 +123,41 @@
 
 [data-bs-theme="dark"] .sidebar .nav-link:hover {
     background-color: #404040;
-}
     color: #ffffff;
 }
 
 [data-bs-theme="dark"] #serial-logs {
     background-color: #1a1a1a;
+}
+
+[data-bs-theme="dark"] #serial-send-content {
+    background-color: #242424;
+    color: #e4e4e4;
+    border-color: #404040;
+}
+
+[data-bs-theme="dark"] .quick-item {
+    border-bottom-color: #383838 !important;
+}
+
+[data-bs-theme="dark"] .quick-item:hover {
+    background-color: rgba(255, 255, 255, 0.04);
+}
+
+[data-bs-theme="dark"] ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+[data-bs-theme="dark"] ::-webkit-scrollbar-track {
+    background: #1e1e1e;
+}
+
+[data-bs-theme="dark"] ::-webkit-scrollbar-thumb {
+    background: #444444;
+    border-radius: 4px;
+}
+
+[data-bs-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+    background: #555555;
 }
