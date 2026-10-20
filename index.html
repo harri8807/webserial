@@ -46,50 +46,154 @@
         <!--左侧串口配置-->
         <div id="serial-options" class="col-auto m-0 bg-light sidebar">
             <div class="collapse show p-2 float-start">
-                <div class="input-group mb-3">
-                    <span class="input-group-text">波特率</span>
-                    <select class="form-select" id="serial-baud">
-                        <option>115200</option>
-                        <option>9600</option>                     
-                        <option>230400</option>
-                        <option>921600</option>
-                        <option>2000000</option>
-                    </select>
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="fw-bold"><i class="bi bi-link-45deg me-1"></i>连接方式</span>
+                </div>
+                <div class="btn-group w-100 connection-mode-switch mb-3" role="group" aria-label="连接方式">
+                    <button type="button" class="btn btn-outline-primary active" data-transport="serial">
+                        <i class="bi bi-usb-plug me-1"></i>串口
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" data-transport="ble">
+                        <i class="bi bi-bluetooth me-1"></i>蓝牙 BLE
+                    </button>
                 </div>
 
-                <div class="input-group mb-3">
-                    <span class="input-group-text">数据位</span>
-                    <select class="form-select" id="serial-data-bits">
-                        <option>8</option>
-                        <option>7</option>
-                    </select>
+                <div id="serial-config">
+                    <div class="input-group mb-3">
+                        <span class="input-group-text">波特率</span>
+                        <select class="form-select" id="serial-baud">
+                            <option>115200</option>
+                            <option>9600</option>
+                            <option>230400</option>
+                            <option>921600</option>
+                            <option>2000000</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group mb-3">
+                        <span class="input-group-text">数据位</span>
+                        <select class="form-select" id="serial-data-bits">
+                            <option>8</option>
+                            <option>7</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group mb-3">
+                        <span class="input-group-text">停止位</span>
+                        <select class="form-select" id="serial-stop-bits">
+                            <option>1</option>
+                            <option>2</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group mb-3">
+                        <span class="input-group-text">校验位</span>
+                        <select class="form-select" id="serial-parity">
+                            <Option value="none">None</Option>
+                            <Option value="even">Even</Option>
+                            <Option value="odd">Odd</Option>
+                        </select>
+                    </div>
+
+                    <div class="d-flex mt-2">
+                        <button class="btn btn-secondary me-3" id="serial-select-port">选择串口</button>
+                        <button class="btn btn-primary flex-grow-1" id="serial-open-or-close">打开串口</button>
+                    </div>
+
+                    <div id="serial-status" class="mt-2">
+                        <div class="alert alert-info" role="alert">
+                            未选择串口
+                        </div>
+                    </div>
                 </div>
 
-                <div class="input-group mb-3">
-                    <span class="input-group-text">停止位</span>
-                    <select class="form-select" id="serial-stop-bits">
-                        <option>1</option>
-                        <option>2</option>
-                    </select>
-                </div>
+                <div id="ble-config" class="d-none">
+                    <div class="ble-device-card mb-3">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-bluetooth fs-4 me-2 text-primary"></i>
+                            <div class="overflow-hidden">
+                                <div id="ble-device-name" class="fw-bold text-truncate">尚未搜索设备</div>
+                                <div id="ble-device-id" class="small text-secondary text-truncate">点击下方按钮搜索附近的 BLE 设备</div>
+                            </div>
+                        </div>
+                    </div>
 
-                <div class="input-group mb-3">
-                    <span class="input-group-text">校验位</span>
-                    <select class="form-select" id="serial-parity">
-                        <Option value="none">None</Option>
-                        <Option value="even">Even</Option>
-                        <Option value="odd">Odd</Option>
-                    </select>
-                </div>
+                    <div class="input-group mb-2">
+                        <span class="input-group-text">设备服务</span>
+                        <select class="form-select" id="ble-profile">
+                            <option value="auto">自动识别（推荐）</option>
+                            <option value="nordic">Nordic UART / NUS</option>
+                            <option value="ffe0">HM-10 / FFE0</option>
+                            <option value="fff0">FFF0 串口服务</option>
+                            <option value="custom">自定义 UUID</option>
+                        </select>
+                    </div>
 
-                <div class="d-flex mt-2">
-                    <button class="btn btn-secondary me-3" id="serial-select-port">选择串口</button>
-                    <button class="btn btn-primary flex-grow-1" id="serial-open-or-close">打开串口</button>
-                </div>
+                    <details class="ble-advanced mb-3">
+                        <summary>高级设置</summary>
+                        <div class="pt-2">
+                            <div class="input-group input-group-sm mb-2">
+                                <span class="input-group-text">名称前缀</span>
+                                <input type="text" class="form-control" id="ble-name-prefix" placeholder="留空显示全部设备">
+                            </div>
+                            <div class="input-group input-group-sm mb-2">
+                                <span class="input-group-text">BLE 单包</span>
+                                <input type="number" class="form-control" id="ble-chunk-size" value="20" min="1" max="512">
+                            </div>
+                            <div class="input-group input-group-sm mb-2">
+                                <span class="input-group-text">包间隔</span>
+                                <input type="number" class="form-control" id="ble-write-delay" value="8" min="0" max="200">
+                            </div>
+                            <div class="input-group input-group-sm mb-2">
+                                <span class="input-group-text">写入方式</span>
+                                <select class="form-select" id="ble-write-mode">
+                                    <option value="auto">自动</option>
+                                    <option value="with">有响应</option>
+                                    <option value="without">无响应</option>
+                                </select>
+                            </div>
+                            <div id="ble-custom-uuids" class="d-none">
+                                <div class="input-group input-group-sm mb-2">
+                                    <span class="input-group-text">服务 UUID</span>
+                                    <input type="text" class="form-control" id="ble-service-uuid" placeholder="例如 6E400001-B5A3-F393-E0A9-E50E24DCCA9E">
+                                </div>
+                                <div class="input-group input-group-sm mb-2">
+                                    <span class="input-group-text">接收 UUID</span>
+                                    <input type="text" class="form-control" id="ble-rx-uuid" placeholder="设备通知到浏览器的特征值,留空自动识别">
+                                </div>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">发送 UUID</span>
+                                    <input type="text" class="form-control" id="ble-tx-uuid" placeholder="浏览器写入设备的特征值,留空自动识别">
+                                </div>
+                                <div class="small text-secondary mt-1">
+                                    填写服务 UUID 后该服务才会被授权访问,否则连接后会报 SecurityError。
+                                </div>
+                            </div>
+                        </div>
+                    </details>
 
-                <div id="serial-status" class="mt-2">
-                    <div class="alert alert-info" role="alert">
-                        未选择串口
+                    <div class="d-flex mt-2">
+                        <button class="btn btn-secondary me-3" id="ble-search">
+                            <i class="bi bi-search me-1"></i>搜索设备
+                        </button>
+                        <button class="btn btn-primary flex-grow-1" id="ble-open-or-close">连接蓝牙</button>
+                    </div>
+
+                    <div id="ble-status" class="mt-2">
+                        <div class="alert alert-info py-2" role="alert">
+                            点击“搜索设备”，在浏览器弹窗中选择 BLE 串口设备
+                        </div>
+                    </div>
+
+                    <button class="btn btn-link btn-sm px-0 mt-1" type="button" id="ble-forget">
+                        清除浏览器中的蓝牙授权记录
+                    </button>
+
+                    <div class="small text-secondary mt-2">
+                        Web Bluetooth 仅支持 BLE，不支持 HC-05/06 等经典蓝牙 SPP。
+                    </div>
+                    <div class="small text-secondary mt-1">
+                        “BLE 单包”不要超过设备协商的 MTU-3（默认 20 字节），超出会写入失败。
                     </div>
                 </div>
 
@@ -121,7 +225,7 @@
         <div id="log-main" class="flex-fill px-md-2">
             <div
                 class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-1 pb-1 mb-1 flex-shrink-0">
-                <h1 class="h3">串口日志</h1>
+                <h1 class="h3" id="log-title">串口日志</h1>
 
                 <div class="btn-toolbar">
                     <div class="input-group input-group-sm me-2">
@@ -280,6 +384,7 @@
     </div>
     <script src="js/ansi_up.min.js"></script>
     <script src="js/ymodem.js"></script>
+    <script src="js/ble.js"></script>
     <script src="js/common.js"></script>
 
 </body>

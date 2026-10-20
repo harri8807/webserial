@@ -1,5 +1,18 @@
 ; (function () {
 	let serialPort = null
+	let transportMode =
+		window.isSecureContext && localStorage.getItem('transportMode') === 'ble'
+			? 'ble'
+			: 'serial'
+	let bleTransport = null
+	let bleDevice = null
+	let bleConnected = false
+	let bleManualClose = true
+	let bleReconnectTimer = null
+	// 蓝牙模块是否加载成功: js/ble.js 缺失时不能让整个脚本抛 ReferenceError,
+	// 否则串口、日志、快捷发送等所有功能都会一起失效。
+	const bleModuleLoaded = typeof BleSerialTransport !== 'undefined'
+	const bleSupported = bleModuleLoaded && BleSerialTransport.supported
 	if (!('serial' in navigator)) {
 		alert('当前浏览器不支持串口操作,请更换Edge或Chrome浏览器')
 	} else {
@@ -15,12 +28,12 @@
 	let serialOpen = false
 	//串口目前是手动关闭状态
 	let serialClose = true
-	//串口分包合并时钟
-	let serialTimer = null
 	//串口循环发送时钟
 	let serialloopSendTimer = null
 	//串口缓存数据
 	let serialData = []
+	//串口分包合并时钟（蓝牙共用）
+	let transportTimer = null
 	//文本解码
 	let textdecoder = new TextDecoder()
 	let currQuickSend = []
@@ -423,10 +436,16 @@
 	document.getElementById('serial-loop-send').checked = toolOptions.loopSend
 	document.getElementById('serial-loop-send-time').value = toolOptions.loopSendTime
 	document.getElementById('serial-send-content').value = toolOptions.sendContent
+	document.getElementById('ble-chunk-size').value = toolOptions.bleChunkSize || 20
+	document.getElementById('ble-write-delay').value =
+		toolOptions.bleWriteDelay === undefined ? 8 : toolOptions.bleWriteDelay
+	document.getElementById('ble-write-mode').value = toolOptions.bleWriteMode || 'auto'
+	document.getElementById('ble-name-prefix').value = toolOptions.bleNamePrefix || ''
 	resetLoopSend()
 	
 	// 初始化快捷发送列表
 	initQuickSendList()
+	initTransportMode()
 
 	//实时修改选项
 	document.getElementById('serial-timer-out').addEventListener('change', (e) => {
@@ -469,9 +488,40 @@
 		changeOption('loopSendTime', parseInt(this.value))
 		resetLoopSend()
 	})
+	document.getElementById('ble-chunk-size').addEventListener('change', function (e) {
+		changeOption('bleChunkSize', Math.max(1, Math.min(512, parseInt(this.value, 10) || 20)))
+	})
+	document.getElementById('ble-write-delay').addEventListener('change', function (e) {
+		changeOption('bleWriteDelay', Math.max(0, Math.min(200, parseInt(this.value, 10) || 0)))
+	})
+	document.getElementById('ble-write-mode').addEventListener('change', function (e) {
+		changeOption('bleWriteMode', this.value)
+	})
+	document.getElementById('ble-name-prefix').addEventListener('change', function (e) {
+		changeOption('bleNamePrefix', this.value.trim())
+	})
+	document.getElementById('ble-profile').addEventListener('change', function (e) {
+		changeOption('bleProfile', this.value)
+		const isCustom = this.value === 'custom'
+		document
+			.getElementById('ble-custom-uuids')
+			.classList.toggle('d-none', !isCustom)
+		// 选自定义时自动展开高级设置, 否则填写的 UUID 被折叠挡住
+		if (isCustom) {
+			document.querySelector('.ble-advanced')?.setAttribute('open', '')
+		}
+	})
+	;['ble-service-uuid', 'ble-rx-uuid', 'ble-tx-uuid'].forEach((id) => {
+		document.getElementById(id).addEventListener('change', function () {
+			const key = id.replace(/-([a-z])/g, (_, c) => c.toUpperCase())
+			changeOption(key, this.value.trim())
+		})
+	})
 
 	document.querySelectorAll('#serial-options .input-group input,#serial-options .input-group select').forEach((item) => {
 		item.addEventListener('change', async (e) => {
+			if (item.closest('#ble-config')) return
+			if (transportMode !== 'serial') return
 			if (!serialOpen) {
 				return
 			}
@@ -519,9 +569,12 @@
 
 	const serialToggle = document.getElementById('serial-open-or-close')
 	const serialLogs = document.getElementById('serial-logs')
+	const bleSearch = document.getElementById('ble-search')
+	const bleToggle = document.getElementById('ble-open-or-close')
 
 	//选择串口
 	document.getElementById('serial-select-port').addEventListener('click', async () => {
+		if (transportMode !== 'serial') return
 		// 客户端授权
 		try {
 			await navigator.serial.requestPort().then(async (port) => {
@@ -541,6 +594,265 @@
 			reader?.cancel()
 			serialToggle.innerHTML = '打开串口'
 		}
+	}
+
+	//切换串口 / 蓝牙
+	function initTransportMode() {
+		if (!bleSupported) {
+			document.querySelectorAll('[data-transport="ble"]').forEach((button) => {
+				button.disabled = true
+				button.title = bleModuleLoaded
+					? '当前浏览器不支持 Web Bluetooth'
+					: '蓝牙模块 js/ble.js 未加载，请检查部署文件是否完整'
+			})
+		}
+		if (transportMode === 'ble' && (!bleSupported || !window.isSecureContext)) {
+			transportMode = 'serial'
+			localStorage.setItem('transportMode', 'serial')
+		}
+		const profile = toolOptions.bleProfile || 'auto'
+		document.getElementById('ble-profile').value = profile
+		document
+			.getElementById('ble-custom-uuids')
+			.classList.toggle('d-none', profile !== 'custom')
+		if (profile === 'custom') {
+			// 展开高级设置，否则填写的 UUID 被折叠挡住看不见
+			document.querySelector('.ble-advanced')?.setAttribute('open', '')
+		}
+		document.getElementById('ble-service-uuid').value = toolOptions.bleServiceUuid || ''
+		document.getElementById('ble-rx-uuid').value = toolOptions.bleRxUuid || ''
+		document.getElementById('ble-tx-uuid').value = toolOptions.bleTxUuid || ''
+
+		document.querySelectorAll('[data-transport]').forEach((button) => {
+			button.classList.toggle('active', button.dataset.transport === transportMode)
+			button.addEventListener('click', () => {
+				setTransportMode(button.dataset.transport).catch((error) => {
+					console.error('切换连接方式失败', error)
+				})
+			})
+		})
+		applyTransportMode()
+	}
+
+	async function setTransportMode(mode) {
+		if (mode === transportMode) return
+		if (mode === 'ble') {
+			if (!bleSupported) {
+				showMsg(
+					bleModuleLoaded
+						? '当前浏览器不支持 Web Bluetooth。请使用最新版 Chrome / Edge，并通过 HTTPS 或 localhost 打开页面。'
+						: '蓝牙模块 js/ble.js 未加载，请检查部署文件是否完整。'
+				)
+				return
+			}
+			if (!window.isSecureContext) {
+				showMsg(
+					'蓝牙需要 HTTPS 或 localhost 安全环境。请使用 start-server.bat 启动本地服务器后访问 http://localhost:8000。'
+				)
+				return
+			}
+			await closeSerial()
+			serialClose = true
+		} else {
+			await disconnectBle(true)
+		}
+		transportMode = mode
+		localStorage.setItem('transportMode', mode)
+		document.querySelectorAll('[data-transport]').forEach((button) => {
+			button.classList.toggle('active', button.dataset.transport === mode)
+		})
+		applyTransportMode()
+	}
+
+	function applyTransportMode() {
+		const isBle = transportMode === 'ble'
+		document.getElementById('serial-config').classList.toggle('d-none', isBle)
+		document.getElementById('ble-config').classList.toggle('d-none', !isBle)
+		document.getElementById('log-title').innerText = isBle ? '蓝牙日志' : '串口日志'
+		document.getElementById('serial-send-content').placeholder = isBle
+			? '输入要发送到蓝牙设备的内容，支持文本或 HEX'
+			: '在此输入要发送的内容,可以是字符串(如:你好,世界!),也可以是HEX(如:49544c4447)'
+	}
+
+	function setBleStatus(type, message) {
+		document.getElementById('ble-status').innerHTML =
+			`<div class="alert alert-${type} py-2" role="alert">${HTMLEncode(message)}</div>`
+	}
+
+	function updateBleDeviceCard(device) {
+		if (!device) {
+			document.getElementById('ble-device-name').innerText = '尚未搜索设备'
+			document.getElementById('ble-device-id').innerText = '点击下方按钮搜索附近的 BLE 设备'
+			return
+		}
+		document.getElementById('ble-device-name').innerText = device.name || '未命名 BLE 设备'
+		document.getElementById('ble-device-id').innerText = device.id || ''
+	}
+
+	function bleOptions() {
+		return {
+			profile: document.getElementById('ble-profile').value,
+			namePrefix: document.getElementById('ble-name-prefix').value,
+			chunkSize: parseInt(document.getElementById('ble-chunk-size').value, 10) || 20,
+			writeMode: document.getElementById('ble-write-mode').value,
+			writeDelay: parseInt(document.getElementById('ble-write-delay').value, 10) || 0,
+			serviceUuid: document.getElementById('ble-service-uuid').value,
+			rxUuid: document.getElementById('ble-rx-uuid').value,
+			txUuid: document.getElementById('ble-tx-uuid').value,
+		}
+	}
+
+	bleSearch.addEventListener('click', async () => {
+		if (!bleSupported) {
+			setBleStatus(
+				'danger',
+				bleModuleLoaded
+					? '当前浏览器不支持 Web Bluetooth，请使用最新版 Chrome 或 Edge'
+					: '蓝牙模块 js/ble.js 未加载，请检查部署文件是否完整'
+			)
+			return
+		}
+		bleSearch.disabled = true
+		try {
+			if (bleConnected || bleTransport) await disconnectBle(true)
+			clearTimeout(bleReconnectTimer)
+			bleTransport = new BleSerialTransport({
+				onDisconnect: handleBleDisconnected,
+			})
+			bleDevice = await bleTransport.requestDevice(bleOptions())
+			// 必须用闭包转发: dataReceived 是函数声明, OTA 流程里会重新赋值
+			// 这个变量来监听 'C' 字符。如果直接传函数对象, 蓝牙侧拿到的仍是
+			// 原始函数, OTA 会一直等不到 'C' 直到超时。
+			bleTransport.onData = (data) => dataReceived(data)
+			bleTransport.onError = (error) => {
+				addLogErr('蓝牙数据处理出错：' + (error?.message || error))
+			}
+			bleTransport.setDisconnectHandler(handleBleDisconnected)
+			bleManualClose = true
+			updateBleDeviceCard(bleDevice)
+			setBleStatus('success', '已选择设备，点击“连接蓝牙”建立串口通道')
+			bleToggle.innerText = '连接蓝牙'
+		} catch (error) {
+			if (error?.name === 'AbortError') {
+				setBleStatus('info', '已取消设备搜索')
+				return
+			}
+			if (error?.name === 'NotFoundError') {
+				setBleStatus('info', '未选择设备，或附近没有匹配的 BLE 设备')
+			} else if (error?.name === 'SecurityError') {
+				setBleStatus('danger', '蓝牙权限被拒绝，请检查浏览器权限和 HTTPS 环境')
+			} else {
+				setBleStatus('danger', '搜索设备失败：' + (error?.message || error))
+			}
+		} finally {
+			bleSearch.disabled = false
+		}
+	})
+
+	bleToggle.addEventListener('click', async () => {
+		if (bleConnected) {
+			await disconnectBle(true)
+			return
+		}
+		if (!bleTransport || !bleDevice) {
+			setBleStatus('info', '请先点击“搜索设备”选择 BLE 设备')
+			return
+		}
+		bleToggle.disabled = true
+		setBleStatus('info', '正在连接 BLE 设备...')
+		try {
+			bleTransport.onData = (data) => dataReceived(data)
+			bleTransport.onError = (error) => {
+				addLogErr('蓝牙数据处理出错：' + (error?.message || error))
+			}
+			await bleTransport.connect({
+				...bleOptions(),
+				onDisconnect: handleBleDisconnected,
+			})
+			bleConnected = true
+			bleManualClose = false
+			clearTimeout(bleReconnectTimer)
+			bleToggle.innerText = '断开蓝牙'
+			setBleStatus(
+				'success',
+				`已连接 · ${bleTransport.profile?.name || 'BLE 串口'}`
+			)
+			addLogErr('蓝牙连接成功')
+		} catch (error) {
+			bleConnected = false
+			bleToggle.innerText = '连接蓝牙'
+			setBleStatus('danger', error?.message || String(error))
+			addLogErr('蓝牙连接失败：' + (error?.message || error))
+		} finally {
+			bleToggle.disabled = false
+		}
+	})
+
+	document.getElementById('ble-forget').addEventListener('click', async () => {
+		if (bleConnected) await disconnectBle(true)
+		try {
+			if (bleDevice?.forget) {
+				await bleDevice.forget()
+			} else {
+				showMsg('当前浏览器版本不支持清除单个蓝牙授权，请在浏览器站点设置中移除蓝牙权限。')
+				return
+			}
+			bleTransport = null
+			bleDevice = null
+			updateBleDeviceCard(null)
+			setBleStatus('info', '已清除蓝牙授权记录，可重新搜索设备')
+		} catch (error) {
+			setBleStatus('danger', '清除授权失败：' + (error?.message || error))
+		}
+	})
+
+	async function disconnectBle(manual = false) {
+		if (manual) bleManualClose = true
+		clearTimeout(bleReconnectTimer)
+		bleTransport?.setDisconnectHandler?.(() => {})
+		if (!bleTransport) {
+			bleConnected = false
+			bleToggle.innerText = '连接蓝牙'
+			return
+		}
+		try {
+			await bleTransport.disconnect()
+		} catch (_) {}
+		bleConnected = false
+		bleToggle.innerText = '连接蓝牙'
+		if (manual) {
+			setBleStatus('info', '蓝牙已断开')
+			addLogErr('蓝牙已断开')
+		}
+	}
+
+	function handleBleDisconnected() {
+		bleConnected = false
+		bleToggle.innerText = '连接蓝牙'
+		if (bleManualClose) return
+		setBleStatus('danger', '蓝牙连接意外断开，正在尝试重连...')
+		addLogErr('蓝牙连接意外断开')
+		clearTimeout(bleReconnectTimer)
+		bleReconnectTimer = setTimeout(async () => {
+			if (bleManualClose || transportMode !== 'ble' || !bleTransport) return
+			try {
+				// 重连后要重新绑定一次: connect() 会重置 rx 队列,
+				// onData 必须继续用闭包转发, 否则 OTA 覆盖后的 dataReceived 收不到。
+				bleTransport.onData = (data) => dataReceived(data)
+				await bleTransport.connect({
+					...bleOptions(),
+					onDisconnect: handleBleDisconnected,
+				})
+				bleConnected = true
+				bleToggle.innerText = '断开蓝牙'
+				setBleStatus('success', '蓝牙已自动重连')
+				addLogErr('蓝牙已自动重连')
+			} catch (error) {
+				bleConnected = false
+				setBleStatus('danger', '蓝牙重连失败，请重新搜索设备')
+				addLogErr('蓝牙重连失败：' + (error?.message || error))
+			}
+		}, 1200)
 	}
 
 	//打开串口
@@ -656,11 +968,27 @@
 	//发送文本到串口
 	async function sendText(text) {
 		const encoder = new TextEncoder()
-		writeData(encoder.encode(text))
+		// 蓝牙写入是异步分片的, 必须等待完成, 否则循环发送/OTA 会交错
+		await writeData(encoder.encode(text))
 	}
 
 	//串口写数据
 	async function writeData(data, skipLog = false) {
+		if (transportMode === 'ble') {
+			if (!bleConnected || !bleTransport) {
+				addLogErr('蓝牙未连接，无法发送')
+				return
+			}
+			try {
+				const payload = data instanceof Uint8Array ? data : Uint8Array.from(data)
+				await bleTransport.write(payload)
+				if (!skipLog) addLog(Array.from(data), false)
+			} catch (e) {
+				addLogErr('蓝牙写入失败: ' + (e?.message || e))
+			}
+			return
+		}
+
 		if (serialPort == null || serialPort.writable == null) {
 			return
 		}
@@ -691,7 +1019,7 @@
 					if (done) {
 						break
 					}
-					dataReceived(value)
+					await dataReceived(value)
 				}
 			} catch (error) {
 			} finally {
@@ -712,8 +1040,8 @@
 
 	// 固件升级按钮点击事件
 	uploadFirmware.addEventListener('click', async () => {
-		if (!serialPort || !serialPort.writable) {
-			showMsg('请先打开串口');
+		if (transportMode === 'ble' ? !bleConnected : !serialPort || !serialPort.writable) {
+			showMsg(transportMode === 'ble' ? '请先连接蓝牙' : '请先打开串口');
 			return;
 		}
 
@@ -870,8 +1198,8 @@
 			}
 
 			//清除之前的时钟
-			clearTimeout(serialTimer);
-			serialTimer = setTimeout(() => {
+			clearTimeout(transportTimer);
+			transportTimer = setTimeout(() => {
 				//超时发出
 				addLog(serialData, true);
 				serialData = [];

@@ -144,6 +144,11 @@
     background-color: rgba(255, 255, 255, 0.04);
 }
 
+[data-bs-theme="dark"] .ble-device-card {
+    background: linear-gradient(135deg, rgba(91, 157, 255, 0.16), rgba(91, 157, 255, 0.04));
+    border-color: rgba(91, 157, 255, 0.28);
+}
+
 [data-bs-theme="dark"] ::-webkit-scrollbar {
     width: 8px;
     height: 8px;

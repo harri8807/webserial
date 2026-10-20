@@ -40,10 +40,17 @@ body {
 }
 #serial-options {
 	border-right: 1px solid #dee2e6;
+	/* 固定宽度: 原生 select 会按最长选项撑宽(蓝牙面板可到 455px),
+	   会把中间的日志区挤窄导致标题换行。两种模式保持一致更稳。 */
+	width: 340px;
+	flex-shrink: 0;
 }
 #serial-options .input-group-text {
-	width: 72px;
+	width: 82px;
 	justify-content: center;
+}
+#serial-options .form-select {
+	min-width: 0;
 }
 #serial-tools {
 	border-left: 1px solid #dee2e6;
@@ -81,6 +88,43 @@ body {
 }
 .quick-item:hover {
 	background-color: rgba(0, 0, 0, 0.03);
+}
+
+.connection-mode-switch .btn {
+	font-weight: 600;
+}
+
+/* Bootstrap 5.3 原生支持 .btn.active, 选中项会是实心按钮 */
+.connection-mode-switch .btn.active {
+	box-shadow: inset 0 0 0 1px currentColor;
+}
+
+/* 日志标题在窄屏下不要断行 */
+#log-title {
+	white-space: nowrap;
+}
+
+.ble-device-card {
+	background: linear-gradient(135deg, rgba(13, 110, 253, 0.1), rgba(13, 110, 253, 0.02));
+	border: 1px solid rgba(13, 110, 253, 0.2);
+	border-radius: 8px;
+	padding: 10px 12px;
+}
+
+.ble-advanced summary {
+	color: var(--bs-secondary-color);
+	cursor: pointer;
+	font-size: 0.8rem;
+	user-select: none;
+}
+
+.ble-advanced summary:hover {
+	color: var(--bs-primary);
+}
+
+#ble-status .alert {
+	font-size: 0.8rem;
+	line-height: 1.45;
 }
 
 ::-webkit-scrollbar {
