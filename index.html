@@ -138,7 +138,7 @@
                             </div>
                             <div class="input-group input-group-sm mb-2">
                                 <span class="input-group-text">BLE 单包</span>
-                                <input type="number" class="form-control" id="ble-chunk-size" value="20" min="1" max="512">
+                                <input type="number" class="form-control" id="ble-chunk-size" value="244" min="1" max="512">
                             </div>
                             <div class="input-group input-group-sm mb-2">
                                 <span class="input-group-text">包间隔</span>
@@ -193,7 +193,11 @@
                         Web Bluetooth 仅支持 BLE，不支持 HC-05/06 等经典蓝牙 SPP。
                     </div>
                     <div class="small text-secondary mt-1">
-                        “BLE 单包”不要超过设备协商的 MTU-3（默认 20 字节），超出会写入失败。
+                        “BLE 单包”是单次写入的最大字节数（= 协商的 MTU-3）。透传模块一般协商 MTU 247，即 244 字节；
+                        发送的数据不超过该值时会<b>整包发出</b>，模块只收到一帧数据；超出才会自动分片。
+                    </div>
+                    <div class="small text-secondary mt-1">
+                        如果整包写入失败，页面会自动把单包降级并提示；也可以在高级设置里手动调小。
                     </div>
                 </div>
 

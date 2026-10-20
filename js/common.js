@@ -436,7 +436,7 @@
 	document.getElementById('serial-loop-send').checked = toolOptions.loopSend
 	document.getElementById('serial-loop-send-time').value = toolOptions.loopSendTime
 	document.getElementById('serial-send-content').value = toolOptions.sendContent
-	document.getElementById('ble-chunk-size').value = toolOptions.bleChunkSize || 20
+	document.getElementById('ble-chunk-size').value = toolOptions.bleChunkSize || 244
 	document.getElementById('ble-write-delay').value =
 		toolOptions.bleWriteDelay === undefined ? 8 : toolOptions.bleWriteDelay
 	document.getElementById('ble-write-mode').value = toolOptions.bleWriteMode || 'auto'
@@ -489,7 +489,11 @@
 		resetLoopSend()
 	})
 	document.getElementById('ble-chunk-size').addEventListener('change', function (e) {
-		changeOption('bleChunkSize', Math.max(1, Math.min(512, parseInt(this.value, 10) || 20)))
+		const size = Math.max(1, Math.min(512, parseInt(this.value, 10) || 244))
+		this.value = size
+		changeOption('bleChunkSize', size)
+		// 立即生效, 不用重连
+		bleTransport?.setChunkSize?.(size)
 	})
 	document.getElementById('ble-write-delay').addEventListener('change', function (e) {
 		changeOption('bleWriteDelay', Math.max(0, Math.min(200, parseInt(this.value, 10) || 0)))
@@ -693,13 +697,24 @@
 		return {
 			profile: document.getElementById('ble-profile').value,
 			namePrefix: document.getElementById('ble-name-prefix').value,
-			chunkSize: parseInt(document.getElementById('ble-chunk-size').value, 10) || 20,
+			chunkSize: parseInt(document.getElementById('ble-chunk-size').value, 10) || 244,
 			writeMode: document.getElementById('ble-write-mode').value,
 			writeDelay: parseInt(document.getElementById('ble-write-delay').value, 10) || 0,
 			serviceUuid: document.getElementById('ble-service-uuid').value,
 			rxUuid: document.getElementById('ble-rx-uuid').value,
 			txUuid: document.getElementById('ble-tx-uuid').value,
 		}
+	}
+
+	// 单包写入失败时, 传输层会自动降级, 这里同步更新界面和提示。
+	function handleBlePacketSizeChange(limit) {
+		document.getElementById('ble-chunk-size').value = limit
+		changeOption('bleChunkSize', limit)
+		setBleStatus(
+			'warning',
+			`单包写入失败，已自动降级为 ${limit} 字节（设备协商的 MTU 可能更小）`
+		)
+		addLogErr(`BLE 单包自动降级为 ${limit} 字节`)
 	}
 
 	bleSearch.addEventListener('click', async () => {
@@ -718,6 +733,7 @@
 			clearTimeout(bleReconnectTimer)
 			bleTransport = new BleSerialTransport({
 				onDisconnect: handleBleDisconnected,
+				onPacketSizeChange: handleBlePacketSizeChange,
 			})
 			bleDevice = await bleTransport.requestDevice(bleOptions())
 			// 必须用闭包转发: dataReceived 是函数声明, OTA 流程里会重新赋值
@@ -775,7 +791,9 @@
 			bleToggle.innerText = '断开蓝牙'
 			setBleStatus(
 				'success',
-				`已连接 · ${bleTransport.profile?.name || 'BLE 串口'}`
+				`已连接 · ${bleTransport.profile?.name || 'BLE 串口'} · 单包 ${
+					bleTransport.packetSize || bleTransport.chunkSize
+				} 字节`
 			)
 			addLogErr('蓝牙连接成功')
 		} catch (error) {

@@ -33,6 +33,14 @@
 		KNOWN_PROFILES.fff0.service,
 	]
 
+	// Web Bluetooth 单次写入的上限: 属性值最长 512 字节(Long Attribute Values)。
+	const MAX_WRITE_BYTES = 512
+	// 透传模块一般协商 ATT MTU 247, 扣掉 3 字节 ATT 头后单包可用 244 字节。
+	// 数据不超过该值时整包发出, 模块只收到一帧, 不会被拆成多个小包。
+	const DEFAULT_CHUNK_SIZE = 244
+	// 降级下限: 默认 ATT MTU 23 时可用 20 字节, 再小就没意义了。
+	const MIN_CHUNK_SIZE = 20
+
 	function normalizeUuid(uuid) {
 		const value = String(uuid || '').trim().toLowerCase()
 		if (!value) return ''
@@ -85,7 +93,13 @@
 			this.disconnectHandler = options.onDisconnect || (() => {})
 			this.onData = null
 			this.onError = null
-			this.chunkSize = 20
+			// 单包上限: 一次 writeValue() 最多写多少字节。
+			// 数据长度不超过它时整包发送, 透传模块收到的是完整的一帧。
+			this.chunkSize = DEFAULT_CHUNK_SIZE
+			// 实际探测到的可用单包大小(写入失败降级后得到), null 表示还没探测过。
+			this.packetSize = null
+			// 单包大小被自动降级时通知外部, 用于更新界面提示。
+			this.onPacketSizeChange = options.onPacketSizeChange || null
 			// 分片之间的间隔(ms)。部分模块连续收包会丢数据, 留一点间隔更稳。
 			this.writeDelay = 8
 			this.writeMode = 'auto'
@@ -153,7 +167,7 @@
 				this.rxSubscription = this.handleNotification.bind(this)
 			}
 
-			this.chunkSize = Math.max(1, Math.min(512, parseInt(options.chunkSize, 10) || 20))
+			this.setChunkSize(options.chunkSize)
 			this.writeMode = options.writeMode || 'auto'
 			const delay = parseInt(options.writeDelay, 10)
 			this.writeDelay = Number.isFinite(delay) ? Math.max(0, Math.min(200, delay)) : 8
@@ -353,6 +367,32 @@
 				})
 		}
 
+		setChunkSize(value) {
+			const size = parseInt(value, 10)
+			this.chunkSize = Number.isFinite(size)
+				? Math.max(1, Math.min(MAX_WRITE_BYTES, size))
+				: DEFAULT_CHUNK_SIZE
+			// 手动调整后, 之前自动降级得到的值不再适用, 重新按新值尝试。
+			this.packetSize = null
+			return this.chunkSize
+		}
+
+		// 写入失败时降级到更小的单包, 并通知外部更新界面。
+		applyPacketSize(limit) {
+			this.packetSize = limit
+			if (this.onPacketSizeChange) {
+				try {
+					this.onPacketSizeChange(limit)
+				} catch (_) {}
+			}
+		}
+
+		// 是不是"包太大"导致写入失败? 只有这类错误才值得换小包重发。
+		isSizeError(error) {
+			const name = error?.name || ''
+			return name === 'NetworkError'
+		}
+
 		async write(data) {
 			if (!this.connected || !this.txCharacteristic) {
 				throw new Error('蓝牙未连接')
@@ -403,18 +443,49 @@
 
 			const task = this.writeChain
 				.then(async () => {
-					for (let offset = 0; offset < bytes.length; offset += this.chunkSize) {
+					// 单包上限: 优先用实际探测到的值, 没有则用界面设置的值。
+					let limit = Math.max(
+						1,
+						Math.min(
+							MAX_WRITE_BYTES,
+							this.packetSize || this.chunkSize
+						)
+					)
+					let offset = 0
+
+					while (offset < bytes.length) {
 						// 分片之间设备可能掉线, 这里要重新检查连接状态
 						if (!this.connected) {
 							throw new Error('蓝牙已断开，数据发送中断')
 						}
-						const chunk = bytes.slice(offset, offset + this.chunkSize)
-						// writeValue() accepts a BufferSource; a Uint8Array view keeps
-						// the packet byte-for-byte identical to the serial path.
-						await writeChunk(chunk)
+						// 数据装得下一整包时一次写完(整包发送), 透传模块
+						// 只会收到一帧数据, 不会被拆成多个小包。
+						const end = Math.min(offset + limit, bytes.length)
+						try {
+							// writeValue() accepts a BufferSource; a Uint8Array view keeps
+							// the packet byte-for-byte identical to the serial path.
+							await writeChunk(bytes.slice(offset, end))
+						} catch (error) {
+							// 有响应写入失败说明这一帧没被设备接收, 可以安全地
+							// 换更小的包重发当前这段数据(前面已发出的不会重发)。
+							// 无响应写入可能已经把数据发到设备了, 自动重发会造成
+							// 重复数据, 所以只提示不重试。
+							if (
+								!useResponse ||
+								!this.isSizeError(error) ||
+								limit <= MIN_CHUNK_SIZE ||
+								!this.connected
+							) {
+								throw this.friendlyWriteError(error)
+							}
+							limit = Math.max(MIN_CHUNK_SIZE, Math.floor(limit / 2))
+							this.applyPacketSize(limit)
+							continue
+						}
+						offset = end
 						// BLE stacks can drop back-to-back notifications. A small
 						// gap keeps OTA packets reliable on lower-end modules.
-						if (offset + this.chunkSize < bytes.length && this.writeDelay > 0) {
+						if (offset < bytes.length && this.writeDelay > 0) {
 							await sleep(this.writeDelay)
 						}
 					}
@@ -484,7 +555,7 @@
 			const name = error?.name || ''
 			if (name === 'NetworkError') {
 				return new Error(
-					'BLE 写入失败。常见原因是"BLE 单包"超过了设备的 ATT MTU（默认只有 20 字节），请在高级设置中调小后重试。'
+					'BLE 写入失败。常见原因是"BLE 单包"超过了设备的 ATT MTU（单包上限 = MTU-3，透传模块常见为 244 字节），请在高级设置中调小后重试。'
 				)
 			}
 			if (name === 'InvalidStateError') {
