@@ -441,6 +441,9 @@
 		toolOptions.bleWriteDelay === undefined ? 8 : toolOptions.bleWriteDelay
 	document.getElementById('ble-write-mode').value = toolOptions.bleWriteMode || 'auto'
 	document.getElementById('ble-name-prefix').value = toolOptions.bleNamePrefix || ''
+	// 旧版页面没有"设备过滤"下拉框时保持原行为(显示全部设备)
+	set('ble-filter-mode', toolOptions.bleFilterMode === 'all' ? 'all' : 'supported')
+	updateBleFilterHint()
 	resetLoopSend()
 	
 	// 初始化快捷发送列表
@@ -503,6 +506,10 @@
 	})
 	document.getElementById('ble-name-prefix').addEventListener('change', function (e) {
 		changeOption('bleNamePrefix', this.value.trim())
+	})
+	document.getElementById('ble-filter-mode')?.addEventListener('change', function (e) {
+		changeOption('bleFilterMode', this.value)
+		updateBleFilterHint()
 	})
 	document.getElementById('ble-profile').addEventListener('change', function (e) {
 		changeOption('bleProfile', this.value)
@@ -697,6 +704,7 @@
 		return {
 			profile: document.getElementById('ble-profile').value,
 			namePrefix: document.getElementById('ble-name-prefix').value,
+			filterMode: get('ble-filter-mode') || 'all',
 			chunkSize: parseInt(document.getElementById('ble-chunk-size').value, 10) || 244,
 			writeMode: document.getElementById('ble-write-mode').value,
 			writeDelay: parseInt(document.getElementById('ble-write-delay').value, 10) || 0,
@@ -704,6 +712,17 @@
 			rxUuid: document.getElementById('ble-rx-uuid').value,
 			txUuid: document.getElementById('ble-tx-uuid').value,
 		}
+	}
+
+	// 扫描过滤的提示文案: 让用户知道当前会不会把未知/不支持的设备过滤掉。
+	function updateBleFilterHint() {
+		const el = document.getElementById('ble-filter-hint')
+		if (!el) return
+		const mode = get('ble-filter-mode') || 'all'
+		el.innerText =
+			mode === 'all'
+				? '当前显示全部设备，未知设备和不支持的设备也会出现。填写“名称前缀”可以只看名称匹配的设备。'
+				: '仅显示广播中带已知串口服务 UUID 的设备，未知设备与耳机、手环等不支持的设备不会出现。若模块不广播服务 UUID 会搜不到，可切换为“全部设备”并填写名称前缀。'
 	}
 
 	// 单包写入失败时, 传输层会自动降级, 这里同步更新界面和提示。
@@ -754,7 +773,10 @@
 				return
 			}
 			if (error?.name === 'NotFoundError') {
-				setBleStatus('info', '未选择设备，或附近没有匹配的 BLE 设备')
+				setBleStatus(
+					'info',
+					'未选择设备，或附近没有匹配的 BLE 设备。若设备明明在旁边却搜不到，请把高级设置里的"设备过滤"切换为"全部设备"后重试。'
+				)
 			} else if (error?.name === 'SecurityError') {
 				setBleStatus('danger', '蓝牙权限被拒绝，请检查浏览器权限和 HTTPS 环境')
 			} else {

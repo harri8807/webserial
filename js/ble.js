@@ -33,6 +33,14 @@
 		KNOWN_PROFILES.fff0.service,
 	]
 
+	// 扫描过滤模式:
+	// supported - 只显示"已知/支持"的设备(默认)。浏览器选择器里只列出广播包中
+	//             advertised 了已知串口服务 UUID 的设备, 未知设备(没有名称、
+	//             不广播服务)和不支持的设备(耳机、手环、键鼠等)都不会出现。
+	// all       - 显示全部设备, 用于排查"明明设备在旁边却搜不到"的情况。
+	const FILTER_MODE_SUPPORTED = 'supported'
+	const FILTER_MODE_ALL = 'all'
+
 	// Web Bluetooth 单次写入的上限: 属性值最长 512 字节(Long Attribute Values)。
 	const MAX_WRITE_BYTES = 512
 	// 透传模块一般协商 ATT MTU 247, 扣掉 3 字节 ATT 头后单包可用 244 字节。
@@ -114,8 +122,43 @@
 			return KNOWN_PROFILES
 		}
 
+		static get filterModes() {
+			return {
+				supported: FILTER_MODE_SUPPORTED,
+				all: FILTER_MODE_ALL,
+			}
+		}
+
 		setDisconnectHandler(handler) {
 			this.disconnectHandler = handler || (() => {})
+		}
+
+		// 根据当前配置算出扫描时用于过滤的服务 UUID 列表。
+		// 过滤规则和连接时的特征查找规则保持一致, 避免"列表里能选到、
+		// 连上却找不到特征"的情况。
+		resolveFilterServices(options = {}) {
+			const profile = options.profile || 'auto'
+			const customService = normalizeUuid(options.serviceUuid)
+			const knownServices = Object.values(KNOWN_PROFILES).map(
+				(item) => item.service
+			)
+
+			if (profile === 'custom') {
+				// 自定义模式没填服务 UUID 时, 退回已知服务, 保证搜索列表不为空。
+				return customService ? [customService] : knownServices
+			}
+
+			if (profile !== 'auto') {
+				const known = KNOWN_PROFILES[profile]
+				return known ? [known.service] : knownServices
+			}
+
+			// 自动识别: 已知服务 + 用户填写的自定义服务
+			const services = knownServices.slice()
+			if (customService && !services.includes(customService)) {
+				services.push(customService)
+			}
+			return services
 		}
 
 		async requestDevice(options = {}) {
@@ -126,27 +169,48 @@
 				throw new Error('蓝牙需要 HTTPS 或 localhost 安全环境，请通过本地 HTTP 服务器打开页面')
 			}
 
+			const namePrefix = String(options.namePrefix || '').trim()
+			const serviceUuid = normalizeUuid(options.serviceUuid)
+			const filterMode =
+				options.filterMode === FILTER_MODE_ALL
+					? FILTER_MODE_ALL
+					: FILTER_MODE_SUPPORTED
+
 			const requestOptions = {
-				acceptAllDevices: true,
+				acceptAllDevices: false,
 				optionalServices: STANDARD_SERVICES.slice(),
 			}
 
-			const namePrefix = String(options.namePrefix || '').trim()
-			const serviceUuid = normalizeUuid(options.serviceUuid)
-			if (namePrefix) {
-				requestOptions.acceptAllDevices = false
-				requestOptions.filters = [{ namePrefix }]
+			if (serviceUuid && !requestOptions.optionalServices.includes(serviceUuid)) {
+				requestOptions.optionalServices.push(serviceUuid)
 			}
 
-			if (serviceUuid) {
-				if (!requestOptions.optionalServices.includes(serviceUuid)) {
-					requestOptions.optionalServices.push(serviceUuid)
+			if (filterMode === FILTER_MODE_ALL) {
+				// 显示全部设备: 只按名称前缀过滤。
+				if (namePrefix) {
+					requestOptions.filters = [{ namePrefix }]
+				} else {
+					requestOptions.acceptAllDevices = true
 				}
-				// 注意: 这里不能用 filters:[{services:[serviceUuid]}] 过滤。
-				// Web Bluetooth 的 services 过滤器只匹配设备"广播包"里
-				// advertised 的服务 UUID, 而很多厂商私有服务的 BLE 模块
-				// 根本不广播服务 UUID, 设备会直接从选择器里消失。
-				// 自定义服务只放进 optionalServices, 连上后再按 UUID 查找。
+			} else {
+				// 只显示支持的设备: Web Bluetooth 只能通过 filters 让浏览器
+				// 选择器过滤设备, 多个 filter 之间是"或"的关系。
+				// services 过滤器匹配的是设备广播包里 advertised 的服务 UUID,
+				// 所以没广播串口服务的设备(未知设备、非串口设备)不会出现在列表里。
+				// 注意: 有些厂商私有服务的透传模块本身不广播服务 UUID,
+				// 这类设备需要把"设备过滤"切换成"全部设备"才能选到。
+				const services = this.resolveFilterServices(options)
+				const filters = services.map((service) =>
+					namePrefix
+						? { services: [service], namePrefix }
+						: { services: [service] }
+				)
+				if (filters.length) {
+					requestOptions.filters = filters
+				} else {
+					// filters 为空浏览器会抛 TypeError, 兜底显示全部设备。
+					requestOptions.acceptAllDevices = true
+				}
 			}
 
 			const device = await navigator.bluetooth.requestDevice(requestOptions)

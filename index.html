@@ -133,8 +133,16 @@
                         <summary>高级设置</summary>
                         <div class="pt-2">
                             <div class="input-group input-group-sm mb-2">
+                                <span class="input-group-text">设备过滤</span>
+                                <select class="form-select" id="ble-filter-mode">
+                                    <option value="supported">仅支持的设备</option>
+                                    <option value="all">全部设备</option>
+                                </select>
+                            </div>
+                            <div class="small text-secondary mb-2" id="ble-filter-hint"></div>
+                            <div class="input-group input-group-sm mb-2">
                                 <span class="input-group-text">名称前缀</span>
-                                <input type="text" class="form-control" id="ble-name-prefix" placeholder="留空显示全部设备">
+                                <input type="text" class="form-control" id="ble-name-prefix" placeholder="设备名称前缀（可选）">
                             </div>
                             <div class="input-group input-group-sm mb-2">
                                 <span class="input-group-text">BLE 单包</span>
@@ -191,6 +199,12 @@
 
                     <div class="small text-secondary mt-2">
                         Web Bluetooth 仅支持 BLE，不支持 HC-05/06 等经典蓝牙 SPP。
+                    </div>
+                    <div class="small text-secondary mt-1">
+                        “设备过滤”选“仅支持的设备”时，搜索列表只显示广播中带已知串口服务 UUID 的设备，未知设备和不支持的设备不会出现。
+                    </div>
+                    <div class="small text-secondary mt-1">
+                        如果设备明明在旁边却搜不到（部分模块不广播服务 UUID），把“设备过滤”切换为“全部设备”再搜一次。
                     </div>
                     <div class="small text-secondary mt-1">
                         “BLE 单包”是单次写入的最大字节数（= 协商的 MTU-3）。透传模块一般协商 MTU 247，即 244 字节；
