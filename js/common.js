@@ -30,10 +30,6 @@
 	let serialClose = true
 	//串口循环发送时钟
 	let serialloopSendTimer = null
-	//串口缓存数据
-	let serialData = []
-	//串口分包合并时钟（蓝牙共用）
-	let transportTimer = null
 	//文本解码
 	let textdecoder = new TextDecoder()
 	let currQuickSend = []
@@ -138,8 +134,6 @@
 		showTime: true,
 		//日志类型
 		logType: 'hex&text',
-		//分包合并时间
-		timeOut: 50,
 		//末尾加回车换行
 		addCRLF: false,
 		//HEX发送
@@ -428,7 +422,7 @@
 	if (options) {
 		toolOptions = JSON.parse(options)
 	}
-	document.getElementById('serial-timer-out').value = toolOptions.timeOut
+	delete toolOptions.timeOut
 	document.getElementById('serial-log-type').value = toolOptions.logType
 	document.getElementById('serial-auto-scroll').innerText = toolOptions.autoScroll ? '自动滚动' : '暂停滚动'
 	document.getElementById('serial-add-crlf').checked = toolOptions.addCRLF
@@ -440,9 +434,8 @@
 	document.getElementById('ble-write-delay').value =
 		toolOptions.bleWriteDelay === undefined ? 8 : toolOptions.bleWriteDelay
 	document.getElementById('ble-write-mode').value = toolOptions.bleWriteMode || 'auto'
-	document.getElementById('ble-name-prefix').value = toolOptions.bleNamePrefix || ''
-	// 旧版页面没有"设备过滤"下拉框时保持原行为(显示全部设备)
-	set('ble-filter-mode', toolOptions.bleFilterMode === 'all' ? 'all' : 'supported')
+	document.getElementById('ble-name-prefix').value = String(toolOptions.bleNamePrefix || '').trim()
+	set('ble-filter-mode', toolOptions.bleFilterMode === 'supported' ? 'supported' : 'all')
 	updateBleFilterHint()
 	resetLoopSend()
 	
@@ -451,9 +444,6 @@
 	initTransportMode()
 
 	//实时修改选项
-	document.getElementById('serial-timer-out').addEventListener('change', (e) => {
-		changeOption('timeOut', parseInt(e.target.value))
-	})
 	document.getElementById('serial-log-type').addEventListener('change', (e) => {
 		changeOption('logType', e.target.value)
 		if (e.target.value.includes('ansi')) {
@@ -505,7 +495,9 @@
 		changeOption('bleWriteMode', this.value)
 	})
 	document.getElementById('ble-name-prefix').addEventListener('change', function (e) {
-		changeOption('bleNamePrefix', this.value.trim())
+		this.value = this.value.trim()
+		changeOption('bleNamePrefix', this.value)
+		updateBleFilterHint()
 	})
 	document.getElementById('ble-filter-mode')?.addEventListener('change', function (e) {
 		changeOption('bleFilterMode', this.value)
@@ -714,15 +706,18 @@
 		}
 	}
 
-	// 扫描过滤的提示文案: 让用户知道当前会不会把未知/不支持的设备过滤掉。
+	// 原生选择器不能按“名称非空”过滤，提示搜索范围与名称检查的区别。
 	function updateBleFilterHint() {
 		const el = document.getElementById('ble-filter-hint')
 		if (!el) return
 		const mode = get('ble-filter-mode') || 'all'
-		el.innerText =
-			mode === 'all'
-				? '当前显示全部设备，未知设备和不支持的设备也会出现。填写“名称前缀”可以只看名称匹配的设备。'
-				: '仅显示广播中带已知串口服务 UUID 的设备，未知设备与耳机、手环等不支持的设备不会出现。若模块不广播服务 UUID 会搜不到，可切换为“全部设备”并填写名称前缀。'
+		const prefix = get('ble-name-prefix').trim()
+		const scope = mode === 'all'
+			? '搜索所有 BLE 设备，不限制串口服务。'
+			: '仅搜索广播中带所选串口服务 UUID 的设备；未广播服务的模块可切换为“所有设备”。'
+		el.innerText = prefix
+			? `${scope}仅显示名称以“${prefix}”开头的设备。`
+			: `${scope}名称前缀为空，不限制设备名称。浏览器可能列出无名称设备，选择后会提示重新选择。`
 	}
 
 	// 单包写入失败时, 传输层会自动降级, 这里同步更新界面和提示。
@@ -1230,20 +1225,7 @@
 		if (!firmwareUpgrading || !ymodem ||
 			ymodem.state === 'DONE' || ymodem.state === 'ERROR') {
 
-			serialData.push(...data);
-			if (toolOptions.timeOut == 0) {
-				addLog(serialData, true);
-				serialData = [];
-				return;
-			}
-
-			//清除之前的时钟
-			clearTimeout(transportTimer);
-			transportTimer = setTimeout(() => {
-				//超时发出
-				addLog(serialData, true);
-				serialData = [];
-			}, toolOptions.timeOut);
+			addLog(data, true);
 		}
 	}
 
@@ -1378,9 +1360,16 @@
 	//左右折叠
 	document.querySelectorAll('.toggle-button').forEach((element) => {
 		element.addEventListener('click', (e) => {
-			e.currentTarget.parentElement.querySelector('.collapse').classList.toggle('show')
-			e.currentTarget.querySelector('i').classList.toggle('bi-chevron-compact-right')
-			e.currentTarget.querySelector('i').classList.toggle('bi-chevron-compact-left')
+			const button = e.currentTarget
+			const sidebar = button.parentElement
+			const expanded = document.getElementById(button.getAttribute('aria-controls')).classList.toggle('show')
+			sidebar.classList.toggle('sidebar-collapsed', !expanded)
+			button.setAttribute('aria-expanded', String(expanded))
+			const label = `${expanded ? '收起' : '展开'}${sidebar.id === 'serial-tools' ? '快捷发送' : '连接设置'}边栏`
+			button.title = label
+			button.setAttribute('aria-label', label)
+			button.querySelector('i').classList.toggle('bi-chevron-compact-right')
+			button.querySelector('i').classList.toggle('bi-chevron-compact-left')
 		})
 	})
 

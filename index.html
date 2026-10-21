@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KAFREE Web Serial Debug-浏览器串口调试工具</title>
+    <title>KAXFREE Web Serial Debug-蓝牙串口调试工具</title>
 
     <link href="vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
     <link href="vendor/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
@@ -29,14 +29,11 @@
         <div class="container-fluid d-flex align-items-center">
             <h1 class="d-flex align-items-center fs-4 text-white mb-0">
                 <img src="imgs/logo.png" width="48" height="48" class="me-3" alt="Web Serial">
-                KAFREE SP OTA
+                咖啡自由 蓝牙&串口调试工具
             </h1>
             <span class="ms-auto d-flex align-items-center">
                 <button class="btn btn-sm btn-outline-light me-2" id="theme-toggle" title="切换深浅主题">
                     <i class="bi bi-moon-fill"></i>
-                </button>
-                <button type="button" onclick="hideTop()" class="btn btn-sm btn-outline-light" title="隐藏顶部导航栏">
-                    <i class="bi bi-chevron-bar-up"></i> 隐藏头部
                 </button>
             </span>
         </div>
@@ -45,7 +42,7 @@
     <div id="main" class="d-flex">
         <!--左侧串口配置-->
         <div id="serial-options" class="col-auto m-0 bg-light sidebar">
-            <div class="collapse show p-2 float-start">
+            <div class="collapse show p-2 float-start" id="serial-options-content">
                 <div class="d-flex align-items-center justify-content-between mb-2">
                     <span class="fw-bold"><i class="bi bi-link-45deg me-1"></i>连接方式</span>
                 </div>
@@ -135,14 +132,14 @@
                             <div class="input-group input-group-sm mb-2">
                                 <span class="input-group-text">设备过滤</span>
                                 <select class="form-select" id="ble-filter-mode">
-                                    <option value="supported">仅支持的设备</option>
-                                    <option value="all">全部设备</option>
+                                    <option value="all">所有设备</option>
+                                    <option value="supported">按串口服务过滤</option>
                                 </select>
                             </div>
                             <div class="small text-secondary mb-2" id="ble-filter-hint"></div>
                             <div class="input-group input-group-sm mb-2">
                                 <span class="input-group-text">名称前缀</span>
-                                <input type="text" class="form-control" id="ble-name-prefix" placeholder="设备名称前缀（可选）">
+                                <input type="text" class="form-control" id="ble-name-prefix" placeholder="留空不限制设备名称">
                             </div>
                             <div class="input-group input-group-sm mb-2">
                                 <span class="input-group-text">BLE 单包</span>
@@ -201,10 +198,10 @@
                         Web Bluetooth 仅支持 BLE，不支持 HC-05/06 等经典蓝牙 SPP。
                     </div>
                     <div class="small text-secondary mt-1">
-                        “设备过滤”选“仅支持的设备”时，搜索列表只显示广播中带已知串口服务 UUID 的设备，未知设备和不支持的设备不会出现。
+                        名称前缀默认为空，可选择任意名称的 BLE 设备；填写前缀后仅显示名称匹配的设备。
                     </div>
                     <div class="small text-secondary mt-1">
-                        如果设备明明在旁边却搜不到（部分模块不广播服务 UUID），把“设备过滤”切换为“全部设备”再搜一次。
+                        浏览器原生选择框可能列出“未知或不支持的设备”，网页无法直接隐藏；无名称设备选中后会提示重新选择。如果设备搜不到，请检查名称前缀，或将“设备过滤”切换为“所有设备”。
                     </div>
                     <div class="small text-secondary mt-1">
                         “BLE 单包”是单次写入的最大字节数（= 协商的 MTU-3）。透传模块一般协商 MTU 247，即 244 字节；
@@ -234,7 +231,7 @@
                     </div>
                 </div>
             </div>
-            <button class="toggle-button float-end" title="隐藏/打开边栏">
+            <button type="button" class="toggle-button float-end" title="收起连接设置边栏" aria-label="收起连接设置边栏" aria-controls="serial-options-content" aria-expanded="true">
                 <i class="bi bi-chevron-compact-left"></i>
             </button>
 
@@ -246,12 +243,6 @@
                 <h1 class="h3" id="log-title">串口日志</h1>
 
                 <div class="btn-toolbar">
-                    <div class="input-group input-group-sm me-2">
-                        <span class="input-group-text">分包超时</span>
-                        <input type="number" id="serial-timer-out" class="form-control" placeholder="0不分包" value="50"
-                            style="width: 100px;" />
-                    </div>
-
                     <div class="input-group input-group-sm me-2">
                         <span class="input-group-text">日志类型</span>
                         <select class="form-select" id="serial-log-type" style="width: 120px;">
@@ -308,10 +299,10 @@
         </div>
         <!--右侧串口工具-->
         <div id="serial-tools" class="col-auto m-0 bg-light sidebar">
-            <button class="toggle-button float-start" title="隐藏/打开边栏">
+            <button type="button" class="toggle-button float-start" title="收起快捷发送边栏" aria-label="收起快捷发送边栏" aria-controls="serial-tools-content" aria-expanded="true">
                 <i class="bi bi-chevron-compact-right"></i>
             </button>
-            <div class="collapse show p-2 float-start overflow-hidden d-flex flex-column" style="width:428px">
+            <div class="collapse show p-2 float-start overflow-hidden" id="serial-tools-content" style="width:428px">
                 <div class="d-flex align-items-center justify-content-between pb-2 border-bottom mb-2 flex-shrink-0">
                     <span class="fw-bold fs-6"><i class="bi bi-lightning-charge me-1"></i>快捷发送</span>
                 </div>

@@ -33,11 +33,9 @@
 		KNOWN_PROFILES.fff0.service,
 	]
 
-	// 扫描过滤模式:
-	// supported - 只显示"已知/支持"的设备(默认)。浏览器选择器里只列出广播包中
-	//             advertised 了已知串口服务 UUID 的设备, 未知设备(没有名称、
-	//             不广播服务)和不支持的设备(耳机、手环、键鼠等)都不会出现。
-	// all       - 显示全部设备, 用于排查"明明设备在旁边却搜不到"的情况。
+	// supported - 广播中带所选串口服务 UUID，可额外按名称前缀过滤。
+	// all       - 搜索全部设备，可额外按名称前缀过滤。
+	// 原生选择器不支持“名称非空”条件，选中后还需检查设备名称。
 	const FILTER_MODE_SUPPORTED = 'supported'
 	const FILTER_MODE_ALL = 'all'
 
@@ -172,9 +170,9 @@
 			const namePrefix = String(options.namePrefix || '').trim()
 			const serviceUuid = normalizeUuid(options.serviceUuid)
 			const filterMode =
-				options.filterMode === FILTER_MODE_ALL
-					? FILTER_MODE_ALL
-					: FILTER_MODE_SUPPORTED
+				options.filterMode === FILTER_MODE_SUPPORTED
+					? FILTER_MODE_SUPPORTED
+					: FILTER_MODE_ALL
 
 			const requestOptions = {
 				acceptAllDevices: false,
@@ -186,34 +184,25 @@
 			}
 
 			if (filterMode === FILTER_MODE_ALL) {
-				// 显示全部设备: 只按名称前缀过滤。
 				if (namePrefix) {
 					requestOptions.filters = [{ namePrefix }]
 				} else {
 					requestOptions.acceptAllDevices = true
 				}
 			} else {
-				// 只显示支持的设备: Web Bluetooth 只能通过 filters 让浏览器
-				// 选择器过滤设备, 多个 filter 之间是"或"的关系。
-				// services 过滤器匹配的是设备广播包里 advertised 的服务 UUID,
-				// 所以没广播串口服务的设备(未知设备、非串口设备)不会出现在列表里。
-				// 注意: 有些厂商私有服务的透传模块本身不广播服务 UUID,
-				// 这类设备需要把"设备过滤"切换成"全部设备"才能选到。
+				// 多个 filter 之间是“或”，每个 filter 内的名称与服务是“且”。
+				// namePrefix 为空时必须省略，浏览器不接受空字符串前缀。
 				const services = this.resolveFilterServices(options)
-				const filters = services.map((service) =>
-					namePrefix
-						? { services: [service], namePrefix }
-						: { services: [service] }
-				)
-				if (filters.length) {
-					requestOptions.filters = filters
-				} else {
-					// filters 为空浏览器会抛 TypeError, 兜底显示全部设备。
-					requestOptions.acceptAllDevices = true
-				}
+				requestOptions.filters = services.map((service) => ({
+					services: [service],
+					...(namePrefix ? { namePrefix } : {}),
+				}))
 			}
 
 			const device = await navigator.bluetooth.requestDevice(requestOptions)
+			if (!String(device.name || '').trim()) {
+				throw new Error('该设备没有蓝牙设备名，请重新搜索并选择有名称的设备')
+			}
 			this.device = device
 			return device
 		}
