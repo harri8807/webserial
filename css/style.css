@@ -88,6 +88,17 @@ body {
 	flex-direction: column;
 }
 
+/* 右侧工具边栏标签页: 激活的页需要撑满剩余高度, 未激活的页必须隐藏 */
+#serial-tools .tab-content > .tab-pane {
+	display: none;
+}
+#serial-tools .tab-content > .tab-pane.active {
+	display: flex;
+}
+#serial-tools .nav-tabs .nav-link {
+	padding: 0.25rem 0.75rem;
+}
+
 .quick-item {
 	transition: background-color 0.15s ease-in-out;
 }

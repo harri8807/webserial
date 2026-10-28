@@ -299,52 +299,91 @@
         </div>
         <!--右侧串口工具-->
         <div id="serial-tools" class="col-auto m-0 bg-light sidebar">
-            <button type="button" class="toggle-button float-start" title="收起快捷发送边栏" aria-label="收起快捷发送边栏" aria-controls="serial-tools-content" aria-expanded="true">
+            <button type="button" class="toggle-button float-start" title="收起工具边栏" aria-label="收起工具边栏" aria-controls="serial-tools-content" aria-expanded="true">
                 <i class="bi bi-chevron-compact-right"></i>
             </button>
             <div class="collapse show p-2 float-start overflow-hidden" id="serial-tools-content" style="width:428px">
-                <div class="d-flex align-items-center justify-content-between pb-2 border-bottom mb-2 flex-shrink-0">
-                    <span class="fw-bold fs-6"><i class="bi bi-lightning-charge me-1"></i>快捷发送</span>
-                </div>
-                <div id="nav-quick-send" class="flex-grow-1 d-flex flex-column overflow-hidden">
-                    <div class="btn-toolbar flex-shrink-0">
-                        <div class="flex-grow-1 input-group input-group-sm me-2">
-                            <span class="input-group-text">选择分组</span>
-                            <select class="form-select" id="serial-quick-send">
-                            </select>
-                        </div>
+                <ul class="nav nav-tabs flex-shrink-0" id="serial-tools-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="tools-tab-quick-send" data-bs-toggle="tab"
+                            data-bs-target="#pane-quick-send" type="button" role="tab" aria-controls="pane-quick-send"
+                            aria-selected="true"><i class="bi bi-lightning-charge me-1"></i>快捷发送</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="tools-tab-burr-test" data-bs-toggle="tab"
+                            data-bs-target="#pane-burr-test" type="button" role="tab" aria-controls="pane-burr-test"
+                            aria-selected="false"><i class="bi bi-sliders me-1"></i>磨豆档位测试</button>
+                    </li>
+                </ul>
+                <div class="tab-content flex-grow-1 overflow-hidden pt-2">
+                    <div class="tab-pane fade show active h-100 flex-column" id="pane-quick-send" role="tabpanel"
+                        aria-labelledby="tools-tab-quick-send" tabindex="0">
+                        <div id="nav-quick-send" class="flex-grow-1 d-flex flex-column overflow-hidden">
+                            <div class="btn-toolbar flex-shrink-0">
+                                <div class="flex-grow-1 input-group input-group-sm me-2">
+                                    <span class="input-group-text">选择分组</span>
+                                    <select class="form-select" id="serial-quick-send">
+                                    </select>
+                                </div>
 
-                        <div class="btn-group">
-                            <button class="btn btn-sm btn-outline-secondary"
-                                id="serial-quick-send-add-group">新增</button>
-                            <button class="btn btn-sm btn-outline-secondary"
-                                id="serial-quick-send-rename-group">改名</button>
-                            <button class="btn btn-sm btn-outline-secondary"
-                                id="serial-quick-send-remove-group">删除</button>
+                                <div class="btn-group">
+                                    <button class="btn btn-sm btn-outline-secondary"
+                                        id="serial-quick-send-add-group">新增</button>
+                                    <button class="btn btn-sm btn-outline-secondary"
+                                        id="serial-quick-send-rename-group">改名</button>
+                                    <button class="btn btn-sm btn-outline-secondary"
+                                        id="serial-quick-send-remove-group">删除</button>
+                                </div>
+                            </div>
+                            <div class="d-flex mt-2 flex-shrink-0">
+                                <button id="serial-quick-send-add" class="btn btn-sm btn-outline-secondary me-5"><i
+                                        class="bi bi-plus-square"></i> 增加一条</button>
+                                <button class="btn btn-sm btn-outline-secondary me-2 flex-grow-1"
+                                    id="serial-quick-send-import-btn"><i class="bi bi-folder-plus"></i>
+                                    导入</button>
+                                <input type="file" id="serial-quick-send-import" style="display: none;"
+                                    accept="application/json" />
+                                <button class="btn btn-sm btn-outline-secondary flex-grow-1"
+                                    id="serial-quick-send-export"><i class="bi bi-folder-symlink"></i>
+                                    导出</button>
+                            </div>
+                            <div class="mt-2 flex-shrink-0">
+                                <div class="d-flex">
+                                    <span class="me-2 ms-3">移除</span>
+                                    <span class="flex-grow-1 me-1">发送内容,点击修改,双击改名</span>
+                                    <span class="flex-shrink-0 me-3">显示名称</span>
+                                    <span class="flex-shrink-0 me-2">HEX</span>
+                                </div>
+                            </div>
+                            <div id="serial-quick-send-content"
+                                class="flex-grow-1 border border-2 p-2 rounded overflow-auto mt-1">
+                            </div>
                         </div>
                     </div>
-                    <div class="d-flex mt-2 flex-shrink-0">
-                        <button id="serial-quick-send-add" class="btn btn-sm btn-outline-secondary me-5"><i
-                                class="bi bi-plus-square"></i> 增加一条</button>
-                        <button class="btn btn-sm btn-outline-secondary me-2 flex-grow-1"
-                            id="serial-quick-send-import-btn"><i class="bi bi-folder-plus"></i>
-                            导入</button>
-                        <input type="file" id="serial-quick-send-import" style="display: none;"
-                            accept="application/json" />
-                        <button class="btn btn-sm btn-outline-secondary flex-grow-1"
-                            id="serial-quick-send-export"><i class="bi bi-folder-symlink"></i>
-                            导出</button>
-                    </div>
-                    <div class="mt-2 flex-shrink-0">
-                        <div class="d-flex">
-                            <span class="me-2 ms-3">移除</span>
-                            <span class="flex-grow-1 me-1">发送内容,点击修改,双击改名</span>
-                            <span class="flex-shrink-0 me-3">显示名称</span>
-                            <span class="flex-shrink-0 me-2">HEX</span>
+                    <div class="tab-pane fade h-100 flex-column" id="pane-burr-test" role="tabpanel"
+                        aria-labelledby="tools-tab-burr-test" tabindex="0">
+                        <div class="d-flex align-items-center pb-2 border-bottom mb-2 flex-shrink-0">
+                            <span class="fw-bold fs-6"><i class="bi bi-sliders me-1"></i>磨豆档位测试</span>
                         </div>
-                    </div>
-                    <div id="serial-quick-send-content"
-                        class="flex-grow-1 border border-2 p-2 rounded overflow-auto mt-1">
+                        <div class="flex-shrink-0">
+                            <button id="burr-sample-toggle" class="btn btn-primary w-100"><i
+                                    class="bi bi-play-fill"></i> 开始采样</button>
+                            <div class="form-text mt-1" id="burr-sample-status">未采样</div>
+                        </div>
+                        <div class="mt-3 flex-shrink-0">
+                            <div class="border border-2 rounded p-3 text-center">
+                                <div class="text-secondary small">AD值</div>
+                                <div class="fs-2 fw-bold font-monospace" id="burr-ad-value">--</div>
+                            </div>
+                            <div class="border border-2 rounded p-3 text-center mt-2">
+                                <div class="text-secondary small">电阻值(Ω)</div>
+                                <div class="fs-2 fw-bold font-monospace" id="burr-resistance-value">--</div>
+                            </div>
+                            <div class="border border-2 rounded p-3 text-center mt-2">
+                                <div class="text-secondary small">档位值</div>
+                                <div class="fs-2 fw-bold font-monospace" id="burr-gear-value">--</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

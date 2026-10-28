@@ -1226,8 +1226,227 @@
 			ymodem.state === 'DONE' || ymodem.state === 'ERROR') {
 
 			addLog(data, true);
+			//磨豆档位测试: 采样中时尝试解析AD值
+			if (burrSampling) {
+				burrParseSample(data)
+			}
 		}
 	}
+
+	/* ==================== 磨豆档位测试 ==================== */
+	//采样状态
+	let burrSampling = false
+	//200ms 轮询发送定时器
+	let burrSampleTimer = null
+	//接收缓冲: 数据帧可能被拆包/粘包, 按 123@...# 首尾标记组帧
+	let burrRxBuffer = ''
+	//发送失败计数(避免设备断开时日志刷屏)
+	let burrSendFailCount = 0
+	//最近一次成功解析的AD值
+	let burrLastAd = null
+	//AD值满量程(12位)
+	const BURR_AD_MAX = 4095
+	//ADC参考电压(V)
+	const BURR_VREF = 3.3
+	//采样电路串联的固定电阻(Ω)
+	const BURR_R_FIXED = 1000
+	//档位换算(两点实测标定):
+	//AD 1025 = 0 档, AD 1490 = 6 档 => 每档 (1490-1025)/6 = 77.5 个AD
+	//按此斜率推算 AD 约 3510 时约为 32 档, 与实测的 1030~3510 分布吻合
+	const BURR_GEAR_BASE_AD = 1025
+	const BURR_GEAR_MAX_AD = 3510
+	const BURR_GEAR_COUNT = 32
+	//采样间隔(ms)与读取命令
+	const BURR_SAMPLE_INTERVAL = 200
+	const BURR_READ_CMD = '123@READ@ALL#12345'
+	//命令帧头, 用于剔除设备回显
+	const BURR_CMD_PREFIX = '123@READ@ALL#'
+	//ALL 帧中 AD 值所在字段下标(从 0 开始, 跳过头部的 123@READ@)
+	const BURR_AD_FIELD_INDEX = 24
+
+	const burrAdEl = document.getElementById('burr-ad-value')
+	const burrResEl = document.getElementById('burr-resistance-value')
+	const burrGearEl = document.getElementById('burr-gear-value')
+	const burrStatusEl = document.getElementById('burr-sample-status')
+	const burrToggleBtn = document.getElementById('burr-sample-toggle')
+
+	//AD -> 电压(V)
+	function burrAdToVoltage(ad) {
+		return (ad / BURR_AD_MAX) * BURR_VREF
+	}
+
+	//AD -> 电阻值(Ω)
+	//电路: 3.3V -- 待测变阻器Rx -- [AD采样点] -- 固定电阻1k -- GND
+	//分压: V = 3.3 * R固定 / (Rx + R固定)  =>  Rx = R固定 * (3.3 - V) / V
+	//所以 AD 越大, Rx 越小
+	function burrAdToResistance(ad) {
+		if (ad <= 0) {
+			return Infinity
+		}
+		if (ad >= BURR_AD_MAX) {
+			return 0
+		}
+		const v = burrAdToVoltage(ad)
+		return (BURR_R_FIXED * (BURR_VREF - v)) / v
+	}
+
+	//AD -> 档位值
+	//实测: AD 1025 = 0 档, AD 1490 = 6 档, 每档 77.5 个AD
+	//AD 低于 1025 归 0 档; 超过 3510(最高档) 按最高档显示
+	const BURR_GEAR_STEP_AD = (1490 - BURR_GEAR_BASE_AD) / 6
+	function burrAdToGear(ad) {
+		if (ad <= BURR_GEAR_BASE_AD) {
+			return 0
+		}
+		if (ad >= BURR_GEAR_MAX_AD) {
+			return BURR_GEAR_COUNT
+		}
+		return Math.round((ad - BURR_GEAR_BASE_AD) / BURR_GEAR_STEP_AD)
+	}
+
+	//档位迟滞: 只有 AD 越过当前档位边界 + 迟滞量才切换档位, 避免在分界点来回跳变
+	//迟滞量取每档跨度的 20%(约 15 个AD), 按实际 AD 抖动幅度调整
+	const BURR_GEAR_HYSTERESIS_AD = BURR_GEAR_STEP_AD * 0.2
+	//当前显示的档位(null 表示尚未有有效档位)
+	let burrGearShown = null
+	//滑动平均, 进一步抑制噪声
+	const BURR_AD_FILTER_SIZE = 5
+	const burrAdWindow = []
+
+	//带迟滞的档位计算
+	function burrAdToGearHysteresis(ad) {
+		const rawGear = burrAdToGear(ad)
+		if (burrGearShown === null) {
+			burrGearShown = rawGear
+			return rawGear
+		}
+		//当前档位 n 的上下分界(AD 中值为 base + n*step, 分界在两档中值的中点)
+		const lowerBoundary = BURR_GEAR_BASE_AD + (burrGearShown - 0.5) * BURR_GEAR_STEP_AD
+		const upperBoundary = BURR_GEAR_BASE_AD + (burrGearShown + 0.5) * BURR_GEAR_STEP_AD
+		const h = BURR_GEAR_HYSTERESIS_AD
+		if (ad > upperBoundary + h) {
+			//向上越过上分界 + 迟滞, 切到新档位
+			burrGearShown = rawGear
+		} else if (burrGearShown > 0 && ad < lowerBoundary - h) {
+			//向下越过下分界 - 迟滞, 切到新档位(0档没有下界)
+			burrGearShown = rawGear
+		}
+		return burrGearShown
+	}
+
+	//滑动平均滤波
+	function burrAdSmooth(ad) {
+		burrAdWindow.push(ad)
+		if (burrAdWindow.length > BURR_AD_FILTER_SIZE) {
+			burrAdWindow.shift()
+		}
+		const sum = burrAdWindow.reduce((a, b) => a + b, 0)
+		return sum / burrAdWindow.length
+	}
+
+	//从 "123@READ@0,0.0,...,2048,-353.2,0.2.1#59449" 中取出AD值(第 24 个字段)
+	//12位AD正常范围 0~4095, 超出范围视为无效帧丢弃
+	function burrParseFrame(frame) {
+		const body = frame.replace(/^123@READ@/i, '')
+		const fields = body.split(',')
+		if (fields.length <= BURR_AD_FIELD_INDEX) {
+			return null
+		}
+		const ad = Number(fields[BURR_AD_FIELD_INDEX])
+		if (!Number.isFinite(ad) || ad < 0 || ad > BURR_AD_MAX) {
+			return null
+		}
+		return ad
+	}
+
+	//接收数据: 组帧后解析AD值
+	function burrParseSample(data) {
+		burrRxBuffer += textdecoder.decode(Uint8Array.from(data), { stream: true })
+		//只保留可能组成一帧的尾部, 防止缓冲区无限增长
+		if (burrRxBuffer.length > 8192) {
+			burrRxBuffer = burrRxBuffer.slice(-2048)
+		}
+		let start = burrRxBuffer.indexOf('123@READ@')
+		while (start >= 0) {
+			const end = burrRxBuffer.indexOf('#', start)
+			if (end < 0) {
+				break
+			}
+			const frame = burrRxBuffer.slice(start, end + 1)
+			burrRxBuffer = burrRxBuffer.slice(end + 1)
+			//跳过自己发送的命令(以及设备回显的命令)
+			if (!frame.startsWith(BURR_CMD_PREFIX)) {
+				const ad = burrParseFrame(frame)
+				if (ad !== null) {
+					burrRenderSample(ad)
+				}
+			}
+			start = burrRxBuffer.indexOf('123@READ@')
+		}
+	}
+
+	function burrRenderSample(ad) {
+		burrLastAd = ad
+		//档位用滤波后的 AD 计算并带迟滞, AD/电阻显示原始值
+		const smoothedAd = burrAdSmooth(ad)
+		const res = burrAdToResistance(ad)
+		const v = burrAdToVoltage(ad)
+		burrAdEl.textContent = `${ad} (${v.toFixed(2)}V)`
+		burrResEl.textContent = Number.isFinite(res) ? res.toFixed(0) : '超量程'
+		burrGearEl.textContent = String(burrAdToGearHysteresis(smoothedAd))
+		burrStatusEl.textContent = '采样中…'
+	}
+
+	//发送一次读取命令
+	async function burrSendReadCommand() {
+		const connected = transportMode === 'ble' ? bleConnected && !!bleTransport : !!serialPort && !!serialPort.writable
+		if (!connected) {
+			if (burrSendFailCount === 0) {
+				addLogErr('磨豆档位测试: 设备未连接, 等待连接后继续发送')
+			}
+			burrSendFailCount++
+			return
+		}
+		if (burrSendFailCount > 0) {
+			addLogErr('磨豆档位测试: 设备已连接, 继续发送')
+			burrSendFailCount = 0
+		}
+		//采样轮询不写日志, 避免200ms一条把日志刷满
+		await writeData(new TextEncoder().encode(BURR_READ_CMD), true)
+	}
+
+	function setBurrSampling(on) {
+		burrSampling = on
+		if (on) {
+			burrRxBuffer = ''
+			burrSendFailCount = 0
+			//重置滤波与迟滞状态, 避免沿用上次采样的档位
+			burrAdWindow.length = 0
+			burrGearShown = null
+			burrToggleBtn.className = 'btn btn-danger w-100'
+			burrToggleBtn.innerHTML = '<i class="bi bi-stop-fill"></i> 停止采样'
+			burrStatusEl.textContent = '采样中…'
+			//立即发一次, 之后每 200ms 一次
+			burrSendReadCommand()
+			burrSampleTimer = setInterval(burrSendReadCommand, BURR_SAMPLE_INTERVAL)
+			addLogErr(`磨豆档位测试: 开始采样, 每 ${BURR_SAMPLE_INTERVAL}ms 发送 ${BURR_READ_CMD}`)
+		} else {
+			if (burrSampleTimer !== null) {
+				clearInterval(burrSampleTimer)
+				burrSampleTimer = null
+			}
+			burrRxBuffer = ''
+			burrToggleBtn.className = 'btn btn-primary w-100'
+			burrToggleBtn.innerHTML = '<i class="bi bi-play-fill"></i> 开始采样'
+			burrStatusEl.textContent = burrLastAd === null ? '已停止' : '已停止, 最近AD值: ' + burrLastAd
+			addLogErr('磨豆档位测试: 停止采样')
+		}
+	}
+
+	burrToggleBtn.addEventListener('click', () => {
+		setBurrSampling(!burrSampling)
+	})
+	/* ==================== 磨豆档位测试 结束 ==================== */
 
 	var ansi_up = new AnsiUp()
 	//添加日志
@@ -1365,7 +1584,7 @@
 			const expanded = document.getElementById(button.getAttribute('aria-controls')).classList.toggle('show')
 			sidebar.classList.toggle('sidebar-collapsed', !expanded)
 			button.setAttribute('aria-expanded', String(expanded))
-			const label = `${expanded ? '收起' : '展开'}${sidebar.id === 'serial-tools' ? '快捷发送' : '连接设置'}边栏`
+			const label = `${expanded ? '收起' : '展开'}${sidebar.id === 'serial-tools' ? '工具' : '连接设置'}边栏`
 			button.title = label
 			button.setAttribute('aria-label', label)
 			button.querySelector('i').classList.toggle('bi-chevron-compact-right')
